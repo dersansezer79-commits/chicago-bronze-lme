@@ -2,8 +2,8 @@ name: Update LME
 
 on:
   schedule:
-    - cron: '5 16 * * *'   # runs daily at 19:05 Türkiye time (16:05 UTC)
-  workflow_dispatch:       # lets you run it manually from the Actions tab
+    - cron: '5 16 * * *'   # runs daily at 19:05 Türkiye (16:05 UTC)
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -13,11 +13,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      # helpful logs
+      - name: Check Node & tree
+        run: |
+          node -v
+          npm -v || true
+          ls -la
+          ls -la scripts || true
+
       - name: Update lme.json
         run: node scripts/update-lme.js
+
       - name: Commit if changed
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
