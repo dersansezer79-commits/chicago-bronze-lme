@@ -1,0 +1,4 @@
+﻿{
+  "usd_per_tonne": 10200,
+  "as_of": "'@ + (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ") + @'"
+}
