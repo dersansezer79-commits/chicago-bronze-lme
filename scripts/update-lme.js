@@ -1,69 +1,31 @@
-﻿import fs from 'fs';
-import { fileURLToPath } from 'url';
-import path from 'path';
+// scripts/update-lme.js
+import fs from "fs";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const LB_PER_TONNE = 2204.62262185; // 1 metric ton = 2204.62 lb
 
-const LME_URL = 'https://www.lme.com/Metals/Non-ferrous/LME-Copper#Overview';
-
-async function fetchText(url) {
-  const res = await fetch(url, {
-    headers: {
-      'user-agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-    }
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return await res.text();
-}
-
-function parsePrice(html) {
-  const patterns = [
-    /USD\/t[^0-9]*([0-9][0-9,]*\.?[0-9]*)/i,
-    /([0-9][0-9,]*\.?[0-9]*)\s*USD\/t/i,
-    /US\$\s*\/t[^0-9]*([0-9][0-9,]*\.?[0-9]*)/i
-  ];
-  for (const re of patterns) {
-    const m = html.match(re);
-    if (m) {
-      const n = Number(m[1].replace(/,/g, ''));
-      if (Number.isFinite(n) && n > 1000) return n;
-    }
-  }
-  return null;
-}
-
-function readPrev(jsonPath) {
+async function fetchCopperUSDPerTonne() {
   try {
-    const raw = fs.readFileSync(jsonPath, 'utf8');
-    const obj = JSON.parse(raw);
-    return typeof obj.usd_per_tonne === 'number' ? obj.usd_per_tonne : 10200;
-  } catch {
-    return 10200;
+    // Free public spot feed (USD/lb). Not official LME settlement.
+    const res = await fetch("https://api.metals.live/v1/spot", {
+      headers: { "User-Agent": "github-action" }
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const arr = await res.json(); // e.g. [{gold:...},{silver:...},{copper: 3.89}, ...]
+    let priceLb = null;
+    for (const row of arr) {
+      if (row && typeof row.copper !== "undefined") priceLb = Number(row.copper);
+    }
+    if (!isFinite(priceLb)) throw new Error("No copper in feed");
+
+    const usdPerTonne = Math.round(priceLb * LB_PER_TONNE);
+    return { usd_per_tonne: usdPerTonne, as_of: new Date().toISOString() };
+  } catch (err) {
+    // Fallback: keep last value so your site stays stable
+    const prev = JSON.parse(fs.readFileSync("lme.json", "utf8"));
+    return { usd_per_tonne: prev.usd_per_tonne, as_of: new Date().toISOString() };
   }
 }
 
-async function main() {
-  const jsonPath = path.join(__dirname, '..', 'lme.json');
-  const prev = readPrev(jsonPath);
-
-  let price = null;
-  try {
-    const html = await fetchText(LME_URL);
-    price = parsePrice(html);
-  } catch {
-    // ignore errors; use previous
-  }
-
-  const value = price ?? prev;
-  const as_of = new Date().toISOString();
-  const payload = { usd_per_tonne: value, as_of };
-  fs.writeFileSync(jsonPath, JSON.stringify(payload, null, 2));
-  console.log('Updated lme.json:', payload);
-}
-
-main().catch(err => {
-  console.error(err);
-  process.exit(0);
-});
+const out = await fetchCopperUSDPerTonne();
+fs.writeFileSync("lme.json", JSON.stringify(out, null, 2) + "\n");
+console.log("Updated:", out);
