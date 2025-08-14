@@ -1,0 +1,428 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Chicago Bronze — Price Calculator</title>
+  <style>
+    :root{
+      --bg:#0b0e13; --card:#0f172a; --txt:#e5e7eb; --muted:#94a3b8; --brand:#38bdf8; --radius:18px;
+      --heroImage: radial-gradient(1200px 600px at 70% -10%, rgba(110,84,43,.22), transparent 60%),
+                   radial-gradient(900px 500px at -10% 90%, rgba(180,120,45,.14), transparent 60%),
+                   radial-gradient(600px 400px at 120% 50%, rgba(80,50,20,.12), transparent 60%);
+    }
+    *{box-sizing:border-box}
+    body{margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--txt); background:#0b0e13; background-image:var(--heroImage)}
+    header{padding:24px 24px 10px; display:flex; gap:14px; align-items:center; justify-content:space-between; max-width:1280px; margin:0 auto}
+    .brand{display:flex; align-items:center; gap:12px}
+    .brand img{height:34px; border-radius:8px; display:none}
+    .brand .name{font-weight:800; letter-spacing:.02em; font-size:18px}
+    .wrap{max-width:1280px; margin:18px auto 40px; padding:0 24px; display:grid; grid-template-columns:1.15fr .85fr; gap:22px}
+    @media (max-width:1080px){.wrap{grid-template-columns:1fr}}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)); border:1px solid rgba(255,255,255,.06);
+          border-radius:18px; box-shadow:0 10px 25px rgba(2,8,23,.25); padding:18px}
+    .label{font-size:12px; color:var(--muted); margin-bottom:6px}
+    .row{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+    input,select,button,textarea{width:100%; padding:12px 13px; border-radius:12px; border:1px solid rgba(226,232,240,.15); background:rgba(15,23,42,.75); color:var(--txt); font-size:14px}
+    textarea{min-height:90px; resize:vertical}
+    input::placeholder{color:#64748b}
+    input:focus,select:focus,textarea:focus{outline:2px solid rgba(56,189,248,.35); border-color:rgba(56,189,248,.35)}
+    button{background:var(--brand); color:#002; border:none; font-weight:800; cursor:pointer}
+    button:disabled{opacity:.6; cursor:not-allowed}
+    .help{font-size:12px; color:var(--muted); margin-top:8px}
+    .err{color:#ef4444; font-size:12px; margin-top:8px}
+    .result{display:flex; flex-direction:column; gap:14px}
+    .metric{display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border-radius:12px; background:rgba(15,23,42,.65); border:1px dashed rgba(226,232,240,.12)}
+    .metric .k{color:var(--muted)}
+    .metric .v{font-size:20px; font-weight:900}
+    .muted{color:var(--muted); font-size:13px}
+    .divider{height:1px; background:rgba(226,232,240,.12); margin:8px 0 2px}
+    .title{font-weight:900; letter-spacing:.01em; margin:0 0 10px; display:flex; align-items:center; gap:8px; font-size:18px}
+    .badge{padding:4px 8px; border-radius:999px; background:rgba(56,189,248,.12); color:#7dd3fc; font-size:12px; font-weight:700}
+    .sketchWrap{background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.06); border-radius:12px; padding:10px; margin-top:10px}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <img id="logo" src="/logo.png" alt="Chicago Bronze logo" onerror="this.style.display='none'"/>
+      <div class="name">Chicago Bronze</div>
+    </div>
+    <div class="badge">Centrifugal Cast Bronze</div>
+  </header>
+
+  <div class="wrap">
+    <section class="card" id="inputsCard">
+      <h2 class="title">Enter Dimension <span class="badge">Step 1</span></h2>
+
+      <div class="row">
+        <div>
+          <div class="label">Dimension units</div>
+          <select id="dimUnits"><option value="mm" selected>mm</option><option value="in">inch</option></select>
+        </div>
+        <div>
+          <div class="label">Weight units</div>
+          <select id="massUnits"><option value="kg" selected>kg</option><option value="lb">lb</option></select>
+        </div>
+      </div>
+
+      <div style="height:12px"></div>
+
+      <div class="row">
+        <div>
+          <div class="label">Part type</div>
+          <select id="partType"><option value="sleeve" selected>Sleeve (straight)</option><option value="flanged">Flanged sleeve</option></select>
+        </div>
+        <div>
+          <div class="label">Alloy</div>
+          <select id="alloy">
+            <option value="C93200_SAE660">C93200 (SAE 660)</option>
+            <option value="C86300_MnBronze">C86300 (Mn Bronze)</option>
+            <option value="C95400_AlBronze">C95400 (Al Bronze)</option>
+            <option value="C95500_NiAlBronze">C95500 (Ni-Al Bronze)</option>
+            <option value="C63000_NiAlBronze">C63000 (Ni-Al Bronze, wrought)</option>
+            <option value="C63200_NiAlBronze">C63200 (Ni-Al Bronze, wrought)</option>
+            <option value="CuSn12Ni2_C">CuSn12Ni2-C (EN CC483K)</option>
+            <option value="CuAl10Fe5_C">CuAl10Fe5Ni5-C (EN CC333G)</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="height:12px"></div>
+
+      <div class="row">
+        <div>
+          <div class="label">Body OD (<span id="odUnitLbl">mm</span>)</div>
+          <input id="od" type="number" inputmode="decimal" placeholder="e.g. 200" min="0" step="0.001">
+        </div>
+        <div>
+          <div class="label">ID (<span id="idUnitLbl">mm</span>) — 0 if solid</div>
+          <input id="id" type="number" inputmode="decimal" placeholder="e.g. 100" min="0" step="0.001">
+        </div>
+      </div>
+
+      <div style="height:12px"></div>
+
+      <div class="row" id="rowLengthSleeve">
+        <div>
+          <div class="label">Length (<span id="lenUnitLbl">mm</span>)</div>
+          <input id="len" type="number" inputmode="decimal" placeholder="e.g. 1000" min="0" step="0.001">
+        </div>
+        <div>
+          <div class="label">Quantity (pcs)</div>
+          <input id="qty" type="number" inputmode="numeric" placeholder="e.g. 1" min="1" step="1" value="1">
+        </div>
+      </div>
+
+      <div id="flangeFields" style="display:none;">
+        <div class="row">
+          <div>
+            <div class="label">Overall length (<span id="overallUnitLbl">mm</span>)</div>
+            <input id="overallLen" type="number" inputmode="decimal" placeholder="e.g. 120" min="0" step="0.001">
+          </div>
+          <div>
+            <div class="label">Flange thickness T (<span id="thkUnitLbl">mm</span>)</div>
+            <input id="flangeThk" type="number" inputmode="decimal" placeholder="e.g. 20" min="0" step="0.001">
+          </div>
+        </div>
+        <div style="height:12px"></div>
+        <div class="row">
+          <div>
+            <div class="label">Flange OD (<span id="fodUnitLbl">mm</span>)</div>
+            <input id="flangeOD" type="number" inputmode="decimal" placeholder="e.g. 260" min="0" step="0.001">
+          </div>
+          <div>
+            <div class="label">Quantity (pcs)</div>
+            <input id="qty2" type="number" inputmode="numeric" placeholder="e.g. 1" min="1" step="1" value="1">
+          </div>
+        </div>
+      </div>
+
+      <div style="height:12px"></div>
+      <button id="calc">Calculate</button>
+
+      <div id="err" class="err" style="display:none;"></div>
+      <div class="help">ID must be less than OD. For flanged parts, overall length ≥ T and flange OD ≥ body OD.</div>
+
+      <div class="sketchWrap">
+        <div class="label">Sketch (not to scale)</div>
+        <svg id="sketch" width="100%" viewBox="0 0 560 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Part sketch">
+          <rect width="560" height="220" fill="none"/>
+        </svg>
+      </div>
+    </section>
+
+    <aside class="card">
+      <h2 class="title">Quote <span class="badge">Step 2</span></h2>
+      <div class="result">
+        <div class="metric"><span class="k">Weight (<span id="weightUnitLbl">kg</span>)</span><span id="weight" class="v">—</span></div>
+        <div class="metric" id="perKgWrap" style="display:none;"><span class="k">Price per <span id="massUnitEcho">kg</span> (USD)</span><span id="perKg" class="v">—</span></div>
+        <div class="metric"><span class="k">Unit price (USD)</span><span id="unit" class="v">—</span></div>
+        <div class="metric"><span class="k">Discount applied</span><span id="discount" class="v">—</span></div>
+        <div class="metric"><span class="k">Total price (USD)</span><span id="total" class="v">—</span></div>
+      </div>
+      <div class="divider"></div>
+      <div class="muted" style="margin-top:8px;">Part: <span id="partEcho" style="font-weight:700;">—</span></div>
+      <div class="muted" style="margin-top:4px;">Alloy: <span id="alloyEcho" style="font-weight:700;">—</span></div>
+      <div class="muted" style="margin-top:4px;">LME basis: <span id="lmeEcho" style="font-weight:700;">—</span></div>
+    </aside>
+  </div>
+
+  <div class="wrap">
+    <section class="card">
+      <h2 class="title">Email this quote <span class="badge">Step 3</span></h2>
+      <form name="quote-request" method="POST" data-netlify="true" netlify-honeypot="bot-field" id="quoteForm">
+        <input type="hidden" name="form-name" value="quote-request">
+        <p class="hp"><label>Please fill this out: <input name="bot-field"></label></p>
+
+        <div class="row">
+          <div>
+            <div class="label">Your name</div>
+            <input type="text" name="customer_name" id="customer_name" placeholder="Jane Doe" required>
+          </div>
+          <div>
+            <div class="label">Email</div>
+            <input type="email" name="customer_email" id="customer_email" placeholder="you@example.com" required>
+          </div>
+        </div>
+        <div style="height:12px"></div>
+        <div>
+          <div class="label">Message (optional)</div>
+          <textarea name="message" id="message" placeholder="Notes, tolerances, delivery needs…"></textarea>
+        </div>
+
+        <input type="hidden" name="part_type">
+        <input type="hidden" name="od">
+        <input type="hidden" name="id">
+        <input type="hidden" name="length">
+        <input type="hidden" name="overall_len">
+        <input type="hidden" name="flange_od">
+        <input type="hidden" name="flange_thk">
+        <input type="hidden" name="dim_units">
+        <input type="hidden" name="mass_units">
+        <input type="hidden" name="alloy">
+        <input type="hidden" name="qty">
+        <input type="hidden" name="weight">
+        <input type="hidden" name="unit_price_usd">
+        <input type="hidden" name="discount_pct">
+        <input type="hidden" name="total_usd">
+        <input type="hidden" name="lme_usd_per_tonne">
+        <input type="hidden" name="lme_as_of">
+
+        <div style="height:12px"></div>
+        <div class="inline">
+          <button id="sendBtn" type="submit" disabled>Send to Chicago Bronze</button>
+          <a id="mailtoLink" class="muted" href="mailto:dersan@chicagobronze.com">or email us</a>
+        </div>
+        <div class="help">Please email your special requests to <strong>dersan@chicagobronze.com</strong>.</div>
+      </form>
+    </section>
+  </div>
+
+  <script>
+    const LME_ENDPOINT = 'https://dersansezer79-commits.github.io/chicago-bronze-lme/lme.json';
+    const LME_FALLBACK_USD_PER_TONNE = 9803;
+    const DISCOUNT_TABLE = [{min:1,pct:0},{min:10,pct:1},{min:25,pct:2},{min:50,pct:3},{min:100,pct:5}];
+    const DISCOUNT_OVERRIDES = {};
+    const SHOW_PRICE_PER_KG = false;
+
+    const ALLOYS = {
+      C93200_SAE660:{density_kg_m3:8800,copper_factor:.83,premium_usd_per_kg:2.4,ops_usd_per_kg:.5,margin_pct:12},
+      C86300_MnBronze:{density_kg_m3:8500,copper_factor:.6,premium_usd_per_kg:3.1,ops_usd_per_kg:.5,margin_pct:12},
+      C95400_AlBronze:{density_kg_m3:7600,copper_factor:.86,premium_usd_per_kg:1.9,ops_usd_per_kg:.5,margin_pct:12},
+      C95500_NiAlBronze:{density_kg_m3:7700,copper_factor:.82,premium_usd_per_kg:3.0,ops_usd_per_kg:.6,margin_pct:12},
+      C63000_NiAlBronze:{density_kg_m3:7580,copper_factor:.8,premium_usd_per_kg:2.8,ops_usd_per_kg:.6,margin_pct:12},
+      C63200_NiAlBronze:{density_kg_m3:7600,copper_factor:.8,premium_usd_per_kg:2.9,ops_usd_per_kg:.6,margin_pct:12},
+      CuSn12Ni2_C:{density_kg_m3:8900,copper_factor:.86,premium_usd_per_kg:3.2,ops_usd_per_kg:.5,margin_pct:12},
+      CuAl10Fe5_C:{density_kg_m3:7650,copper_factor:.82,premium_usd_per_kg:3.0,ops_usd_per_kg:.6,margin_pct:12}
+    };
+
+    const $ = (s)=>document.querySelector(s);
+    const INCH_TO_MM = 25.4, LB_PER_KG = 2.20462262185;
+    function showError(m){const e=$('#err'); e.style.display='block'; e.textContent=m}
+    function clearError(){const e=$('#err'); e.style.display='none'; e.textContent=''}
+    function round(n,d=3){return Number(n.toFixed(d))}
+    function fmt(n,d=2){return Number(n).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d})}
+    function toMetersFromInputs(v,u){return u==='mm'?Number(v)/1000:Number(v)*INCH_TO_MM/1000}
+
+    function calcWeightKg_dimUnits(od,id,l,u,rho){
+      const ODm=toMetersFromInputs(od,u), IDm=toMetersFromInputs(id||0,u), Lm=toMetersFromInputs(l,u);
+      if(!(ODm>0&&Lm>0)||IDm<0||IDm>=ODm) throw new Error('Check dimensions (OD>ID>=0, length>0).');
+      const V=Math.PI/4*(ODm*ODm-IDm*IDm)*Lm; return V*rho;
+    }
+    function calcWeightKg_flanged(odb,id,ol,fod,t,u,rho){
+      const toM=(v)=>toMetersFromInputs(v,u), Tm=toM(t), Lm_body=toM(ol)-Tm;
+      if(Lm_body<0) throw new Error('Overall length must be ≥ flange thickness.');
+      const ODm_body=toM(odb), IDm=toM(id), ODm_fl=toM(fod);
+      if(!(ODm_body>0)||!(ODm_fl>0)||!(IDm>=0)) throw new Error('Check dimensions.');
+      if(IDm>=ODm_body) throw new Error('ID must be < body OD.');
+      if(ODm_fl<ODm_body) throw new Error('Flange OD must be ≥ body OD.');
+      const Vb=Math.PI/4*(ODm_body**2-IDm**2)*Lm_body, Vf=Math.PI/4*(ODm_fl**2-IDm**2)*Tm;
+      return (Vb+Vf)*rho;
+    }
+
+    function getDiscountPct(a,q){const t=(DISCOUNT_OVERRIDES[a]||DISCOUNT_TABLE); let p=0; for(const r of t){if(q>=r.min)p=r.pct} return p;}
+
+    function compute({partType,od,id,len,overallLen,flangeOD,flangeThk,alloyKey,qty,lme_usd_per_tonne,dimUnit}){
+      const A=ALLOYS[alloyKey]; if(!A) throw new Error('Unknown alloy'); if(!(qty>=1)) throw new Error('Quantity must be at least 1');
+      const w = partType==='flanged'
+        ? calcWeightKg_flanged(od,id,overallLen,flangeOD,flangeThk,dimUnit,A.density_kg_m3)
+        : calcWeightKg_dimUnits(od,id,len,dimUnit,A.density_kg_m3);
+      const lkg=lme_usd_per_tonne/1000, base=lkg*(A.copper_factor??1), ops=A.ops_usd_per_kg??0, margin=A.margin_pct??0;
+      const cost=base+A.premium_usd_per_kg+ops, sell=cost*(1+margin/100);
+      const unit_base=sell*w, disc=getDiscountPct(alloyKey,qty), unit_after=unit_base*(1-disc/100), total=unit_after*qty;
+      return {weightKg:w, sell_per_kg:sell, unit_base, discountPct:disc, unit_after_discount:unit_after, total};
+    }
+
+    async function loadLME(){
+      try{ const r=await fetch(LME_ENDPOINT,{cache:'no-store'}); if(!r.ok) throw new Error('HTTP '+r.status);
+        const j=await r.json(); if(typeof j.usd_per_tonne!=='number') throw new Error('bad payload');
+        return {value:j.usd_per_tonne, as_of:j.as_of||''};
+      }catch(e){ return {value:LME_FALLBACK_USD_PER_TONNE, as_of:''}; }
+    }
+
+    function drawSketch({partType,od,id,len,overallLen,flangeOD,flangeThk,dimUnit}){
+      const svg=document.getElementById('sketch'); while(svg.lastChild) svg.removeChild(svg.lastChild);
+      const W=560,H=220,margin=36,cx0=margin,cy=H/2,availW=W-2*margin,availH=H-2*margin;
+      const mm=(u,v)=>u==='mm'?v:v*25.4;
+      const ODmm=mm(dimUnit,od||0), IDmm=mm(dimUnit,id||0), Lmm=partType==='flanged'?mm(dimUnit,overallLen||0):mm(dimUnit,len||0);
+      const Tmm=partType==='flanged'?mm(dimUnit,flangeThk||0):0, FODmm=partType==='flanged'?mm(dimUnit,flangeOD||0):ODmm;
+      const maxOD=Math.max(ODmm||1,FODmm||1), sx=Lmm>0?Math.min(availW/(Lmm||1),2.5):1.5, sy=Math.min(availH/(maxOD||1),2.5);
+      const bodyLen_px=Math.max(0,Lmm-Tmm)*sx, flangeLen_px=Tmm*sx, bodyHalf_px=ODmm/2*sy, flangeHalf_px=FODmm/2*sy, boreHalf_px=IDmm/2*sy;
+
+      function R(x,y,w,h,o={}){const r=document.createElementNS('http://www.w3.org/2000/svg','rect');r.setAttribute('x',x);r.setAttribute('y',y);r.setAttribute('width',w);r.setAttribute('height',h);r.setAttribute('fill','none');r.setAttribute('stroke','rgba(226,232,240,0.85)');r.setAttribute('stroke-width','2');if(o.dash)r.setAttribute('stroke-dasharray',o.dash);svg.appendChild(r)}
+      function L(x1,y1,x2,y2,o={}){const l=document.createElementNS('http://www.w3.org/2000/svg','line');l.setAttribute('x1',x1);l.setAttribute('y1',y1);l.setAttribute('x2',x2);l.setAttribute('y2',y2);l.setAttribute('stroke',o.color||'rgba(148,163,184,0.9)');l.setAttribute('stroke-width',o.w||1);if(o.dash)l.setAttribute('stroke-dasharray',o.dash);svg.appendChild(l)}
+      function T(x,y,t){const s=document.createElementNS('http://www.w3.org/2000/svg','text');s.setAttribute('x',x);s.setAttribute('y',y);s.setAttribute('fill','rgba(148,163,184,0.95)');s.setAttribute('font-size','12');s.setAttribute('font-family','Inter, system-ui, sans-serif');s.textContent=t;svg.appendChild(s)}
+      function Arrow(x1,y1,x2,y2,label){const c='rgba(125,211,252,0.95)';L(x1,y1,x2,y2,{color:c,w:1});
+        function tip(x,y,dx,dy){L(x,y,x-dx+dy*.5,y-dy-dx*.5,{color:c});L(x,y,x-dx-dy*.5,y-dy+dx*.5,{color:c})}
+        tip(x1,y1,(x1<x2?-6:6),(y1<y2?-6:6)); tip(x2,y2,(x1<x2?6:-6),(y1<y2?6:-6)); if(label) T((x1+x2)/2+6,(y1+y2)/2-6,label);
+      }
+
+      const x0=cx0, yTop=cy-bodyHalf_px, yBot=cy+bodyHalf_px;
+      if(Lmm>0&&ODmm>0){
+        if(partType==='flanged'){
+          R(x0,yTop,bodyLen_px,bodyHalf_px*2);
+          const xFl=x0+bodyLen_px, yFlTop=cy-flangeHalf_px, yFlBot=cy+flangeHalf_px;
+          R(xFl,yFlTop,flangeLen_px,flangeHalf_px*2);
+          if(IDmm>0){ L(x0,cy-boreHalf_px,x0+bodyLen_px+flangeLen_px,cy-boreHalf_px); L(x0,cy+boreHalf_px,x0+bodyLen_px+flangeLen_px,cy-boreHalf_px); }
+          Arrow(x0,yTop-18,x0+bodyLen_px,yTop-18,`Body length ${((Lmm-Tmm)/(dimUnit==='mm'?1:25.4)).toFixed(2)} ${dimUnit}`);
+          Arrow(x0+bodyLen_px,yFlBot+18,x0+bodyLen_px+flangeLen_px,yFlBot+18,`T ${((Tmm)/(dimUnit==='mm'?1:25.4)).toFixed(2)} ${dimUnit}`);
+          Arrow(x0,yTop-36,x0+bodyLen_px+flangeLen_px,yTop-36,`Overall ${((Lmm)/(dimUnit==='mm'?1:25.4)).toFixed(2)} ${dimUnit}`);
+          Arrow(x0-24,cy-bodyHalf_px,x0-24,cy+bodyHalf_px,`OD ${((ODmm)/(dimUnit==='mm'?1:25.4)).toFixed(2)} ${dimUnit}`);
+          if(FODmm>ODmm){ Arrow(x0+bodyLen_px+flangeLen_px+24,cy-flangeHalf_px,x0+bodyLen_px+flangeLen_px+24,cy+flangeHalf_px,`FOD ${((FODmm)/(dimUnit==='mm'?1:25.4)).toFixed(2)} ${dimUnit}`); }
+          if(IDmm>0){ Arrow(x0-48,cy-boreHalf_px,x0-48,cy+boreHalf_px,`ID ${((IDmm)/(dimUnit==='mm'?1:25.4)).toFixed(2)} ${dimUnit}`); }
+        } else {
+          R(x0,yTop,Lmm*sx,bodyHalf_px*2);
+          if(IDmm>0){ L(x0,cy-boreHalf_px,x0+Lmm*sx,cy-boreHalf_px); L(x0,cy+boreHalf_px,x0+Lmm*sx,cy-boreHalf_px); }
+          Arrow(x0,yTop-18,x0+Lmm*sx,yTop-18,`L ${((Lmm)/(dimUnit==='mm'?1:25.4)).toFixed(2)} ${dimUnit}`);
+          Arrow(x0-24,cy-bodyHalf_px,x0-24,cy+bodyHalf_px,`OD ${((ODmm)/(dimUnit==='mm'?1:25.4)).toFixed(2)} ${dimUnit}`);
+          if(IDmm>0){ Arrow(x0-48,cy-boreHalf_px,x0-48,cy+boreHalf_px,`ID ${((IDmm)/(dimUnit==='mm'?1:25.4)).toFixed(2)} ${dimUnit}`); }
+        }
+      } else {
+        T(margin,H/2,'Enter dimensions to preview the sketch.');
+      }
+    }
+
+    let lastQuote=null, lmeLoaded={value:null,as_of:''};
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      function updateUnitLabels(){
+        const dim=$('#dimUnits').value;
+        $('#odUnitLbl').textContent=dim; $('#idUnitLbl').textContent=dim; $('#lenUnitLbl').textContent=dim;
+        $('#overallUnitLbl').textContent=dim; $('#thkUnitLbl').textContent=dim; $('#fodUnitLbl').textContent=dim;
+        $('#weightUnitLbl').textContent=$('#massUnits').value; $('#massUnitEcho').textContent=$('#massUnits').value;
+      }
+      function toggleFlange(){
+        const pt=$('#partType').value; const show=(pt==='flanged');
+        $('#flangeFields').style.display = show ? 'block':'none';
+        $('#rowLengthSleeve').style.display = show ? 'none':'grid';
+      }
+
+      $('#dimUnits').addEventListener('change', ()=>{updateUnitLabels(); drawSketch(readDims())});
+      $('#massUnits').addEventListener('change', updateUnitLabels);
+      $('#partType').addEventListener('change', ()=>{ toggleFlange(); drawSketch(readDims()) });
+      ['od','id','len','overallLen','flangeThk','flangeOD'].forEach(id=>{
+        document.getElementById(id)?.addEventListener('input', ()=> drawSketch(readDims()) );
+      });
+
+      updateUnitLabels(); toggleFlange(); drawSketch(readDims());
+
+      lmeLoaded = await loadLME(); window._LME_USD_PER_TONNE = lmeLoaded.value; document.getElementById('lmeEcho').textContent = '$'+fmt(lmeLoaded.value,0)+'/t'+(lmeLoaded.as_of?(' • '+lmeLoaded.as_of):'');
+
+      document.getElementById('calc').addEventListener('click', () => {
+        clearError();
+        const d = readDims();
+        const qty = Number((d.partType==='flanged' ? (document.getElementById('qty2').value||'1') : (document.getElementById('qty').value||'1')));
+        if(!(d.od>0) || !(d.id>=0)) { showError('Please fill OD and ID.'); return; }
+        if(d.partType==='sleeve' && !(d.len>0)) { showError('Please fill Length.'); return; }
+        if(d.partType==='flanged' && (!(d.overallLen>0) || !(d.flangeThk>0) || !(d.flangeOD>0))) { showError('Fill overall length, flange OD and thickness.'); return; }
+        if(d.id >= d.od) { showError('ID must be less than OD.'); return; }
+
+        try{
+          const {weightKg, sell_per_kg, discountPct, unit_after_discount, total} =
+            compute({partType:d.partType, od:d.od, id:d.id, len:d.len, overallLen:d.overallLen, flangeOD:d.flangeOD, flangeThk:d.flangeThk, alloyKey:d.alloyKey, qty, dimUnit:d.dimUnit, lme_usd_per_tonne:window._LME_USD_PER_TONNE});
+
+          const massUnit = d.massUnit;
+          const weightOut = (massUnit==='lb') ? weightKg*LB_PER_KG : weightKg;
+          document.getElementById('weight').textContent = fmt(round(weightOut, massUnit==='lb'?2:3), massUnit==='lb'?2:3);
+          document.getElementById('unit').textContent = '$ ' + fmt(round(unit_after_discount,2),2);
+          document.getElementById('discount').textContent = discountPct ? (discountPct + '%') : '—';
+          document.getElementById('total').textContent = '$ ' + fmt(round(total,2),2);
+          document.getElementById('partEcho').textContent = d.partType==='flanged' ? 'Flanged sleeve' : 'Sleeve (straight)';
+          document.getElementById('alloyEcho').textContent = d.alloyKey.replaceAll('_',' ');
+
+          lastQuote = { ...d, qty, weight:weightOut, unitPrice:unit_after_discount, discountPct, total,
+                        lme_usd_per_tonne:window._LME_USD_PER_TONNE, lme_as_of:lmeLoaded.as_of };
+
+          const subject = encodeURIComponent('Quote request — Chicago Bronze');
+          const dimsLines = d.partType==='flanged'
+            ? `Part: Flanged\nOD (body): ${d.od} ${d.dimUnit}\nID: ${d.id} ${d.dimUnit}\nOverall: ${d.overallLen} ${d.dimUnit}\nFlange OD: ${d.flangeOD} ${d.dimUnit}\nT: ${d.flangeThk} ${d.dimUnit}`
+            : `Part: Sleeve\nOD: ${d.od} ${d.dimUnit}\nID: ${d.id} ${d.dimUnit}\nL: ${d.len} ${d.dimUnit}`;
+          const body = encodeURIComponent(`Name: \nEmail: \n\n${dimsLines}\nQty: ${qty}\nWeight (${massUnit}): ${round(weightOut, massUnit==='lb'?2:3)}\nUnit price (USD): ${round(unit_after_discount,2)}\nDiscount: ${discountPct}%\nTotal (USD): ${round(total,2)}\nLME: $${lmeLoaded.value}/t ${lmeLoaded.as_of?('('+lmeLoaded.as_of+')'):''}`);
+          document.getElementById('mailtoLink').href = 'mailto:dersan@chicagobronze.com?subject='+subject+'&body='+body;
+
+          document.getElementById('sendBtn').disabled = false;
+        }catch(err){ showError(err.message || String(err)); }
+      });
+
+      document.getElementById('quoteForm').addEventListener('submit', (e) => {
+        if(!lastQuote){ e.preventDefault(); showError('Please calculate a quote first.'); return; }
+        const f=e.target, q=lastQuote;
+        f.elements['part_type'].value = q.partType;
+        f.elements['od'].value = String(q.od);
+        f.elements['id'].value = String(q.id);
+        f.elements['length'].value = String(q.len || '');
+        f.elements['overall_len'].value = String(q.overallLen || '');
+        f.elements['flange_od'].value = String(q.flangeOD || '');
+        f.elements['flange_thk'].value = String(q.flangeThk || '');
+        f.elements['dim_units'].value = q.dimUnit;
+        f.elements['mass_units'].value = q.massUnit;
+        f.elements['alloy'].value = q.alloyKey;
+        f.elements['qty'].value = String(q.qty);
+        f.elements['weight'].value = String(round(q.weight, q.massUnit==='lb'?2:3));
+        f.elements['unit_price_usd'].value = String(round(q.unitPrice,2));
+        f.elements['discount_pct'].value = String(q.discountPct);
+        f.elements['total_usd'].value = String(round(q.total,2));
+        f.elements['lme_usd_per_tonne'].value = String(q.lme_usd_per_tonne);
+        f.elements['lme_as_of'].value = q.lme_as_of || '';
+      });
+
+      function readDims(){
+        const dimUnit=document.getElementById('dimUnits').value,
+              massUnit=document.getElementById('massUnits').value,
+              alloyKey=document.getElementById('alloy').value,
+              partType=document.getElementById('partType').value;
+        const od=Number(document.getElementById('od').value),
+              id=document.getElementById('id').value===''?0:Number(document.getElementById('id').value);
+        const len=Number(document.getElementById('len').value);
+        const overallLen=Number(document.getElementById('overallLen').value),
+              flangeThk=Number(document.getElementById('flangeThk').value),
+              flangeOD=Number(document.getElementById('flangeOD').value);
+        drawSketch({partType,od,id,len,overallLen,flangeOD,flangeThk,dimUnit});
+        return {dimUnit,massUnit,alloyKey,partType,od,id,len,overallLen,flangeThk,flangeOD};
+      }
+    });
+  </script>
+</body>
+</html>
