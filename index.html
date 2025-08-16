@@ -16,11 +16,18 @@
   body{margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--txt); background:#0b0e13; background-image:var(--heroImage)}
   header{padding:26px 24px 18px; display:flex; flex-direction:column; align-items:center; gap:8px; max-width:1280px; margin:0 auto}
   .brandTitle{
-    font-weight:900; letter-spacing:.02em; font-size:30px; line-height:1;
-    background:linear-gradient(135deg,var(--bronze1),var(--bronze2));
-    -webkit-background-clip:text;background-clip:text;color:transparent; text-align:center;
-    text-shadow:0 1px 0 rgba(0,0,0,.2);
-  }
+  font-weight: 900;
+  letter-spacing: .02em;
+  font-size: 32px;             /* keep or revert to 30px if you prefer */
+  line-height: 1.25;           /* was 1 — this avoids ascender clipping */
+  padding-top: 6px;            /* gives a little breathing room */
+  display: inline-block;       /* isolates line box so it's not trimmed */
+  background: linear-gradient(135deg, var(--bronze1), var(--bronze2));
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  text-align: center;
+  text-shadow: 0 1px 0 rgba(0,0,0,.2);
+}
   .tagline{color:#c8a47f; font-weight:700; letter-spacing:.02em; margin-top:4px}
   .trustRow{display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:8px}
   .trust{font-size:12px; padding:6px 10px; border-radius:999px; color:#f5e7d6;
