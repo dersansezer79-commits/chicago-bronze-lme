@@ -1,5 +1,5 @@
 {
-  "version": "2025-08-16T18:19:10.750774Z",
+  "version": "2025-08-16T18:26:15.075Z",
   "defaults": {
     "ops_usd_per_kg": 0.5,
     "margin_pct": 12,
@@ -10,7 +10,7 @@
       "label": "C93200 (SAE 660)",
       "density_kg_m3": 8800,
       "lme_multiplier": 0.83,
-      "premium_usd_per_kg": 2.4,
+      "premium_usd_per_kg": 100,
       "ops_usd_per_kg": 0.5,
       "margin_pct": 12,
       "limits": {
@@ -61,7 +61,7 @@
       "label": "C95500 (Ni-Al Bronze)",
       "density_kg_m3": 7700,
       "lme_multiplier": 0.82,
-      "premium_usd_per_kg": 3.0,
+      "premium_usd_per_kg": 3,
       "ops_usd_per_kg": 0.6,
       "margin_pct": 12,
       "limits": {
@@ -129,7 +129,7 @@
       "label": "CuAl10Fe5Ni5-C (EN CC333G)",
       "density_kg_m3": 7650,
       "lme_multiplier": 0.82,
-      "premium_usd_per_kg": 3.0,
+      "premium_usd_per_kg": 3,
       "ops_usd_per_kg": 0.6,
       "margin_pct": 12,
       "limits": {
