@@ -1,0 +1,146 @@
+{
+  "version": "2025-08-16T18:19:10.750774Z",
+  "defaults": {
+    "ops_usd_per_kg": 0.5,
+    "margin_pct": 12,
+    "lme_multiplier": 1
+  },
+  "alloys": {
+    "C93200_SAE660": {
+      "label": "C93200 (SAE 660)",
+      "density_kg_m3": 8800,
+      "lme_multiplier": 0.83,
+      "premium_usd_per_kg": 2.4,
+      "ops_usd_per_kg": 0.5,
+      "margin_pct": 12,
+      "limits": {
+        "max_len_mm": 1200,
+        "max_od_mm": 600,
+        "min_bore_wall_mm": 6
+      },
+      "flange": {
+        "max_od_mm": 800,
+        "max_thk_mm": 60
+      }
+    },
+    "C86300_MnBronze": {
+      "label": "C86300 (Mn Bronze)",
+      "density_kg_m3": 8500,
+      "lme_multiplier": 0.6,
+      "premium_usd_per_kg": 3.1,
+      "ops_usd_per_kg": 0.5,
+      "margin_pct": 12,
+      "limits": {
+        "max_len_mm": 1200,
+        "max_od_mm": 600,
+        "min_bore_wall_mm": 6
+      },
+      "flange": {
+        "max_od_mm": 800,
+        "max_thk_mm": 60
+      }
+    },
+    "C95400_AlBronze": {
+      "label": "C95400 (Al Bronze)",
+      "density_kg_m3": 7600,
+      "lme_multiplier": 0.86,
+      "premium_usd_per_kg": 1.9,
+      "ops_usd_per_kg": 0.5,
+      "margin_pct": 12,
+      "limits": {
+        "max_len_mm": 1200,
+        "max_od_mm": 600,
+        "min_bore_wall_mm": 6
+      },
+      "flange": {
+        "max_od_mm": 800,
+        "max_thk_mm": 60
+      }
+    },
+    "C95500_NiAlBronze": {
+      "label": "C95500 (Ni-Al Bronze)",
+      "density_kg_m3": 7700,
+      "lme_multiplier": 0.82,
+      "premium_usd_per_kg": 3.0,
+      "ops_usd_per_kg": 0.6,
+      "margin_pct": 12,
+      "limits": {
+        "max_len_mm": 1200,
+        "max_od_mm": 600,
+        "min_bore_wall_mm": 6
+      },
+      "flange": {
+        "max_od_mm": 800,
+        "max_thk_mm": 60
+      }
+    },
+    "C63000_NiAlBronze": {
+      "label": "C63000 (Ni-Al Bronze, wrought)",
+      "density_kg_m3": 7580,
+      "lme_multiplier": 0.8,
+      "premium_usd_per_kg": 2.8,
+      "ops_usd_per_kg": 0.6,
+      "margin_pct": 12,
+      "limits": {
+        "max_len_mm": 1200,
+        "max_od_mm": 600,
+        "min_bore_wall_mm": 6
+      },
+      "flange": {
+        "max_od_mm": 800,
+        "max_thk_mm": 60
+      }
+    },
+    "C63200_NiAlBronze": {
+      "label": "C63200 (Ni-Al Bronze, wrought)",
+      "density_kg_m3": 7600,
+      "lme_multiplier": 0.8,
+      "premium_usd_per_kg": 2.9,
+      "ops_usd_per_kg": 0.6,
+      "margin_pct": 12,
+      "limits": {
+        "max_len_mm": 1200,
+        "max_od_mm": 600,
+        "min_bore_wall_mm": 6
+      },
+      "flange": {
+        "max_od_mm": 800,
+        "max_thk_mm": 60
+      }
+    },
+    "CuSn12Ni2_C": {
+      "label": "CuSn12Ni2-C (EN CC483K)",
+      "density_kg_m3": 8900,
+      "lme_multiplier": 0.86,
+      "premium_usd_per_kg": 3.2,
+      "ops_usd_per_kg": 0.5,
+      "margin_pct": 12,
+      "limits": {
+        "max_len_mm": 1200,
+        "max_od_mm": 600,
+        "min_bore_wall_mm": 6
+      },
+      "flange": {
+        "max_od_mm": 800,
+        "max_thk_mm": 60
+      }
+    },
+    "CuAl10Fe5_C": {
+      "label": "CuAl10Fe5Ni5-C (EN CC333G)",
+      "density_kg_m3": 7650,
+      "lme_multiplier": 0.82,
+      "premium_usd_per_kg": 3.0,
+      "ops_usd_per_kg": 0.6,
+      "margin_pct": 12,
+      "limits": {
+        "max_len_mm": 1200,
+        "max_od_mm": 600,
+        "min_bore_wall_mm": 6
+      },
+      "flange": {
+        "max_od_mm": 800,
+        "max_thk_mm": 60
+      }
+    }
+  }
+}
