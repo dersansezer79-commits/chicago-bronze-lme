@@ -673,6 +673,22 @@
       img.onload = function(){ ctx.clearRect(0,0,printCanvas.width,printCanvas.height); ctx.drawImage(img,0,0); window.print(); proxy.remove(); };
       img.src = svg64;
     });
+// --- Preselect alloy from URL (?alloy=KEY)
+(function preselectFromQuery(){
+  const params = new URLSearchParams(location.search);
+  const qAlloy = params.get('alloy');
+  if (!qAlloy) return;
+
+  const sel = document.getElementById('alloy');
+  if (!sel) return;
+
+  // If options are hard-coded OR built from JSON, this still works once options exist.
+  const has = Array.from(sel.options).some(o => o.value === qAlloy);
+  if (has) {
+    sel.value = qAlloy;
+    sel.dispatchEvent(new Event('change')); // refresh any echoes/sketches tied to change
+  }
+})();
 
   }); // DOMContentLoaded
 
