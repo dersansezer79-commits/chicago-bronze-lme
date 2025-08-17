@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Chicago Bronze — Alloy Comparison</title>
+<style>
+  :root{--bg:#0b0e13;--card:#0f172a;--txt:#e5e7eb;--muted:#94a3b8;--brand:#38bdf8;--bronze1:#a97142;--bronze2:#6e4a2c}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:var(--txt);
+       background:radial-gradient(1200px 600px at 70% -10%, rgba(110,84,43,.22), transparent 60%),
+                  radial-gradient(900px 500px at -10% 90%, rgba(180,120,45,.14), transparent 60%),
+                  radial-gradient(600px 400px at 120% 50%, rgba(80,50,20,.12), transparent 60%), #0b0e13;}
+  header{max-width:1240px;margin:18px auto 6px;padding:0 18px;text-align:center}
+  .brand{font-weight:900;letter-spacing:.02em;font-size:28px;background:linear-gradient(135deg,var(--bronze1),var(--bronze2));
+         -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+  .tag{color:#c8a47f;font-weight:700;margin-top:4px}
+  .wrap{max-width:1240px;margin:12px auto 24px;padding:0 18px}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media (max-width:1050px){.grid{grid-template-columns:1fr}}
+  .card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.06);
+        border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px;min-height:540px}
+  .toprow{display:flex;gap:8px;align-items:center;justify-content:space-between}
+  .name{font-weight:900;font-size:16px}
+  select,input,button{width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(226,232,240,.12);
+                      background:rgba(15,23,42,.85);color:var(--txt);font-size:14px}
+  button{background:linear-gradient(180deg,#60a5fa,#38bdf8);color:#001428;font-weight:800;border:none;cursor:pointer}
+  .muted{color:var(--muted);font-size:12px}
+  .pill{padding:4px 8px;border-radius:999px;background:rgba(56,189,248,.12);color:#7dd3fc;font-size:11px;font-weight:700}
+  .seg{display:inline-flex;border-radius:10px;overflow:hidden;border:1px solid rgba(226,232,240,.12)}
+  .seg button{padding:8px 10px;background:rgba(15,23,42,.85);border:0;color:#cbd5e1}
+  .seg button.active{background:linear-gradient(180deg,#60a5fa,#38bdf8);color:#001428;font-weight:800}
+  .specs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .kv{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:8px}
+  .kv .k{color:var(--muted);font-size:12px}
+  .kv .v{font-weight:800}
+  .bars{display:flex;gap:4px}
+  .bar{width:16px;height:10px;border-radius:3px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1)}
+  .bar.on{background:rgba(125,211,252,.35);border-color:rgba(125,211,252,.6)}
+  .chem{font-size:12px;color:#dbeafe;line-height:1.25}
+  .foot{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:8px}
+</style>
+</head>
+<body>
+  <header>
+    <div class="brand">Chicago Bronze</div>
+    <div class="tag">Pick up to 3 alloys • Compare key properties • Then price it</div>
+  </header>
+
+  <div class="wrap">
+    <div class="grid" id="grid"></div>
+  </div>
+
+<script>
+/* ===== SETTINGS ===== */
+const ALLOYS_URL = 'https://dersansezer79-commits.github.io/chicago-bronze-lme/alloys.json?t=' + Date.now();
+// Your Wix calculator page:
+const CALC_URL   = 'https://dersansezer79.wixsite.com/website-4/blank'; // change if needed
+// Default 3 alloys to show first:
+const DEFAULT_KEYS = ['C93200_SAE660','C95400_AlBronze','C86300_MnBronze'];
+
+/* ===== UTIL ===== */
+const $ = (s)=>document.querySelector(s);
+const fmt = (n,d=0)=>Number(n).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d});
+function bars(n){ n=Math.max(0,Math.min(5,Number(n)||0)); let h='<div class="bars">';
+  for(let i=1;i<=5;i++) h+=`<div class="bar${i<=n?' on':''}"></div>`; return h+'</div>'; }
+function familyGuess(label){
+  const L=(label||'').toLowerCase();
+  if (L.includes('sae 660')||L.includes('c932')||L.includes('leaded')) return 'Lead Tin Bronze';
+  if (L.includes('c863')||L.includes('manganese')) return 'Manganese Bronze';
+  if (L.includes('al bronze')||L.includes('c95')||L.includes('c63')) return 'Aluminum Bronze';
+  if (L.includes('tin bronze')||L.includes('c90')) return 'Tin Bronze';
+  return '';
+}
+function chemLine(obj){
+  if (!obj || typeof obj!=='object') return '—';
+  const parts = Object.entries(obj)
+    .filter(([k,v])=>Number.isFinite(v))
+    .sort((a,b)=>b[1]-a[1])
+    .slice(0,5)
+    .map(([k,v])=>`${k} ${v}%`);
+  return parts.length? parts.join(' • ') : '—';
+}
+
+/* ===== RENDER ONE SLOT ===== */
+function renderSlot(container, alloysMap, curKey){
+  container.innerHTML = '';
+  const keys = Object.keys(alloysMap);
+  // selector
+  const sel = document.createElement('select'); sel.style.width='100%';
+  for (const k of keys){
+    const a=alloysMap[k], label=a.label||k.replaceAll('_',' ');
+    const opt = document.createElement('option'); opt.value=k; opt.textContent=label; sel.appendChild(opt);
+  }
+  if (curKey && keys.includes(curKey)) sel.value=curKey;
+
+  const a = alloysMap[sel.value] || {};
+  const label = a.label || sel.value.replaceAll('_',' ');
+  const fam = a.family || familyGuess(label);
+
+  const card = document.createElement('div'); card.className='card';
+  // header row
+  const top = document.createElement('div'); top.className='toprow';
+  top.innerHTML = `<div>
+      <div class="name">${label}</div>
+      <div class="muted">${sel.value}${fam?` • <span class="pill">${fam}</span>`:''}</div>
+    </div>`;
+  top.appendChild(sel);
+  card.appendChild(top);
+
+  // casting method
+  let method='centrifugal';
+  const seg = document.createElement('div'); seg.className='seg';
+  seg.innerHTML = `
+    <button type="button" class="active" data-val="centrifugal">Centrifugal (hollow)</button>
+    <button type="button" data-val="continuous">Continuous (solid)</button>`;
+  seg.querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      seg.querySelectorAll('button').forEach(x=>x.classList.remove('active'));
+      btn.classList.add('active');
+      method = btn.dataset.val;
+    });
+  });
+  const methodRow = document.createElement('div');
+  methodRow.innerHTML = `<div class="muted">Casting Method</div>`;
+  methodRow.appendChild(seg);
+  methodRow.style.display='flex'; methodRow.style.justifyContent='space-between'; methodRow.style.alignItems='center'; methodRow.style.gap='8px';
+  card.appendChild(methodRow);
+
+  // specs
+  const dens = (a.density_kg_m3!=null)? `${fmt(a.density_kg_m3)} kg/m³` : '—';
+  const BHN  = (a.hardness_BHN!=null)? `${fmt(a.hardness_BHN)}` : '—';
+  const TS   = (a.tensile_MPa!=null)? `${fmt(a.tensile_MPa)}` : '—';
+  const YS   = (a.yield_MPa!=null)? `${fmt(a.yield_MPa)}` : '—';
+  const EL   = (a.elongation_pct!=null)? `${fmt(a.elongation_pct)} %` : '—';
+  const machR = a.machinability?.rating||0;
+  const machT = a.machinability?.text||'—';
+
+  const specs = document.createElement('div'); specs.className='specs';
+  specs.innerHTML = `
+    <div class="kv"><div class="k">Machinability</div><div class="v" style="display:flex;align-items:center;gap:6px">${bars(machR)} <span class="muted">${machT}</span></div></div>
+    <div class="kv"><div class="k">Density</div><div class="v">${dens}</div></div>
+    <div class="kv"><div class="k">Hardness (BHN)</div><div class="v">${BHN}</div></div>
+    <div class="kv"><div class="k">Tensile (MPa)</div><div class="v">${TS}</div></div>
+    <div class="kv"><div class="k">Yield (MPa)</div><div class="v">${YS}</div></div>
+    <div class="kv"><div class="k">Elongation (%)</div><div class="v">${EL}</div></div>
+  `;
+  card.appendChild(specs);
+
+  // chemistry line
+  const chem = document.createElement('div');
+  chem.className='chem';
+  chem.textContent = 'Chemistry: ' + chemLine(a.composition);
+  card.appendChild(chem);
+
+  // limits (tiny, one row)
+  if (a.limits){
+    const L=a.limits, t=[];
+    if (L.max_od_mm)   t.push(`Max OD ${fmt(L.max_od_mm)} mm`);
+    if (L.max_len_mm)  t.push(`Max L ${fmt(L.max_len_mm)} mm`);
+    if (L.min_bore_wall_mm) t.push(`Min bore wall ${fmt(L.min_bore_wall_mm)} mm`);
+    if (t.length){
+      const lim = document.createElement('div'); lim.className='muted'; lim.textContent = t.join(' • ');
+      card.appendChild(lim);
+    }
+  }
+
+  // footer
+  const foot = document.createElement('div'); foot.className='foot';
+  const hint = document.createElement('div'); hint.className='muted'; hint.textContent='Price this alloy in the calculator';
+  const cta = document.createElement('button'); cta.textContent='Price this alloy →';
+  cta.addEventListener('click', ()=>{
+    const shape = (method==='continuous') ? 'solid' : 'hollow';
+    const url = `${CALC_URL}?alloy=${encodeURIComponent(sel.value)}&method=${encodeURIComponent(method)}&shape=${encodeURIComponent(shape)}`;
+    window.location.href = url;
+  });
+  foot.appendChild(hint); foot.appendChild(cta);
+  card.appendChild(foot);
+
+  // change alloy in slot
+  sel.addEventListener('change', ()=> renderSlot(container, alloysMap, sel.value));
+  container.appendChild(card);
+}
+
+/* ===== LOAD + BUILD ===== */
+(async function(){
+  let alloys={};
+  try{
+    const r=await fetch(ALLOYS_URL,{cache:'no-store'}); const j=await r.json();
+    alloys = j.alloys || j || {};
+  }catch(e){
+    document.getElementById('grid').innerHTML = '<div class="card"><div class="muted">Could not load alloys.json</div></div>';
+    return;
+  }
+  // Only 3 fixed slots → no long pages.
+  const grid = document.getElementById('grid');
+  for (let i=0;i<3;i++){
+    const col = document.createElement('div'); grid.appendChild(col);
+    const key = DEFAULT_KEYS[i] && alloys[DEFAULT_KEYS[i]] ? DEFAULT_KEYS[i] : Object.keys(alloys)[i] || null;
+    renderSlot(col, alloys, key);
+  }
+})();
+</script>
+</body>
+</html>
