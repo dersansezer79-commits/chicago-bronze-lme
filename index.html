@@ -16,11 +16,18 @@
   body{margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--txt); background:#0b0e13; background-image:var(--heroImage)}
   header{padding:26px 24px 18px; display:flex; flex-direction:column; align-items:center; gap:8px; max-width:1280px; margin:0 auto}
   .brandTitle{
-    font-weight:900; letter-spacing:.02em; font-size:30px; line-height:1;
-    background:linear-gradient(135deg,var(--bronze1),var(--bronze2));
-    -webkit-background-clip:text;background-clip:text;color:transparent; text-align:center;
-    text-shadow:0 1px 0 rgba(0,0,0,.2);
-  }
+  font-weight: 900;
+  letter-spacing: .02em;
+  font-size: 32px;             /* keep or revert to 30px if you prefer */
+  line-height: 1.25;           /* was 1 — this avoids ascender clipping */
+  padding-top: 6px;            /* gives a little breathing room */
+  display: inline-block;       /* isolates line box so it's not trimmed */
+  background: linear-gradient(135deg, var(--bronze1), var(--bronze2));
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  text-align: center;
+  text-shadow: 0 1px 0 rgba(0,0,0,.2);
+}
   .tagline{color:#c8a47f; font-weight:700; letter-spacing:.02em; margin-top:4px}
   .trustRow{display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:8px}
   .trust{font-size:12px; padding:6px 10px; border-radius:999px; color:#f5e7d6;
@@ -48,7 +55,6 @@
   .title{font-weight:900; letter-spacing:.01em; margin:0 0 10px; display:flex; align-items:center; gap:8px; font-size:18px}
   .badge{padding:4px 8px; border-radius:999px; background:rgba(56,189,248,.12); color:#7dd3fc; font-size:12px; font-weight:700}
 
-  /* Results panel */
   .result{display:flex; flex-direction:column; gap:14px}
   .metric{display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border-radius:12px; background:rgba(15,23,42,.65); border:1px dashed rgba(226,232,240,.12)}
   .metric .k{color:var(--muted)}
@@ -56,17 +62,14 @@
   .divider{height:1px; background:rgba(226,232,240,.12); margin:8px 0 2px}
   .muted{color:var(--muted); font-size:13px}
 
-  /* Sketch + preview */
   .sketchWrap{background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.06); border-radius:12px; padding:10px; margin-top:10px}
   .previewWrap{margin-top:12px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.06); border-radius:12px; padding:10px}
   .previewTitle{font-size:12px; color:var(--muted); margin-bottom:6px}
   canvas#iso{width:100%; max-width:520px; height:260px; display:block}
 
-  /* Footer for legal note */
   .footer{max-width:1280px; margin:0 auto 40px; color:var(--muted); padding:0 24px; font-size:12px}
   .hp{display:none}
 
-  /* Print-friendly PDF layout */
   @media print {
     body{background:#fff}
     header, .wrap > section#inputsCard, .footer {display:none}
@@ -79,19 +82,12 @@
     .kv{display:flex; justify-content:space-between; margin:4px 0; font-size:12px}
     #printSketch{width:100%; height:220px; border:1px solid #ccc; border-radius:6px}
   }
-
-  /* Back link */
-  #backLink{ text-decoration:underline; color:#93c5fd; display:none; }
 </style>
 </head>
 <body>
   <header>
     <div class="brandTitle">Chicago Bronze</div>
     <div class="tagline">Precision Cast. Perfectly Priced.</div>
-
-    <!-- shown only when ?back=<url> is passed -->
-    <a id="backLink" href="#">← Back to alloy selection</a>
-
     <div class="trustRow">
       <div class="trust">Centrifugal Cast Bronze</div>
       <div class="trust">Prices updated daily with LME</div>
@@ -125,7 +121,6 @@
         </div>
         <div>
           <div class="label">Alloy</div>
-          <!-- initial options are just placeholders; rebuilt from alloys.json on load -->
           <select id="alloy">
             <option value="C93200_SAE660">C93200 (SAE 660)</option>
             <option value="C86300_MnBronze">C86300 (Mn Bronze)</option>
@@ -258,7 +253,6 @@
 
   <div class="footer" id="debug" style="display:none;"></div>
 
-  <!-- Hidden print document (assembled on Save as PDF) -->
   <div class="printDoc" id="printDoc" style="display:none;">
     <h1>Chicago Bronze — Indicative Quote</h1>
     <small id="printAsOf">As of —</small>
@@ -290,22 +284,25 @@
 <script>
   /* ---------- CONFIG ---------- */
   const LME_ENDPOINT = 'https://dersansezer79-commits.github.io/chicago-bronze-lme/lme.json?t=' + Date.now();
+
+  /* NEW: remote alloys.json endpoint */
   const ALLOYS_ENDPOINT = 'https://dersansezer79-commits.github.io/chicago-bronze-lme/alloys.json?t=' + Date.now();
+
   const LME_FALLBACK_USD_PER_TONNE = 9803;
   const DISCOUNT_TABLE = [{min:1,pct:0},{min:10,pct:1},{min:25,pct:2},{min:50,pct:3},{min:100,pct:5}];
   const DISCOUNT_OVERRIDES = {};
   const SHOW_PRICE_PER_KG = false;
 
-  /* ---------- BAKED-IN FALLBACK ALLOYS ---------- */
+  /* Fallback baked-in alloys (overridden by alloys.json if it loads) */
   const ALLOYS = {
-    C93200_SAE660:{label:'C93200 (SAE 660)',density_kg_m3:8800,lme_multiplier:.83,premium_usd_per_kg:2.4,ops_usd_per_kg:.5,margin_pct:12},
-    C86300_MnBronze:{label:'C86300 (Mn Bronze)',density_kg_m3:8500,lme_multiplier:.6,premium_usd_per_kg:3.1,ops_usd_per_kg:.5,margin_pct:12},
-    C95400_AlBronze:{label:'C95400 (Al Bronze)',density_kg_m3:7600,lme_multiplier:.86,premium_usd_per_kg:1.9,ops_usd_per_kg:.5,margin_pct:12},
-    C95500_NiAlBronze:{label:'C95500 (Ni-Al Bronze)',density_kg_m3:7700,lme_multiplier:.82,premium_usd_per_kg:3.0,ops_usd_per_kg:.6,margin_pct:12},
-    C63000_NiAlBronze:{label:'C63000 (Ni-Al Bronze, wrought)',density_kg_m3:7580,lme_multiplier:.8,premium_usd_per_kg:2.8,ops_usd_per_kg:.6,margin_pct:12},
-    C63200_NiAlBronze:{label:'C63200 (Ni-Al Bronze, wrought)',density_kg_m3:7600,lme_multiplier:.8,premium_usd_per_kg:2.9,ops_usd_per_kg:.6,margin_pct:12},
-    CuSn12Ni2_C:{label:'CuSn12Ni2-C (EN CC483K)',density_kg_m3:8900,lme_multiplier:.86,premium_usd_per_kg:3.2,ops_usd_per_kg:.5,margin_pct:12},
-    CuAl10Fe5_C:{label:'CuAl10Fe5Ni5-C (EN CC333G)',density_kg_m3:7650,lme_multiplier:.82,premium_usd_per_kg:3.0,ops_usd_per_kg:.6,margin_pct:12}
+    C93200_SAE660:{density_kg_m3:8800,lme_multiplier:.83,premium_usd_per_kg:2.4,ops_usd_per_kg:.5,margin_pct:12},
+    C86300_MnBronze:{density_kg_m3:8500,lme_multiplier:.6,premium_usd_per_kg:3.1,ops_usd_per_kg:.5,margin_pct:12},
+    C95400_AlBronze:{density_kg_m3:7600,lme_multiplier:.86,premium_usd_per_kg:1.9,ops_usd_per_kg:.5,margin_pct:12},
+    C95500_NiAlBronze:{density_kg_m3:7700,lme_multiplier:.82,premium_usd_per_kg:3.0,ops_usd_per_kg:.6,margin_pct:12},
+    C63000_NiAlBronze:{density_kg_m3:7580,lme_multiplier:.8,premium_usd_per_kg:2.8,ops_usd_per_kg:.6,margin_pct:12},
+    C63200_NiAlBronze:{density_kg_m3:7600,lme_multiplier:.8,premium_usd_per_kg:2.9,ops_usd_per_kg:.6,margin_pct:12},
+    CuSn12Ni2_C:{density_kg_m3:8900,lme_multiplier:.86,premium_usd_per_kg:3.2,ops_usd_per_kg:.5,margin_pct:12},
+    CuAl10Fe5_C:{density_kg_m3:7650,lme_multiplier:.82,premium_usd_per_kg:3.0,ops_usd_per_kg:.6,margin_pct:12}
   };
 
   /* ---------- HELPERS ---------- */
@@ -335,18 +332,23 @@
   function getDiscountPct(a,q){const t=(DISCOUNT_OVERRIDES[a]||DISCOUNT_TABLE); let p=0; for(const r of t){if(q>=r.min)p=r.pct} return p;}
   function compute({partType,od,id,len,overallLen,flangeOD,flangeThk,alloyKey,qty,lme_usd_per_tonne,dimUnit}){
     const A=ALLOYS[alloyKey]; if(!A) throw new Error('Unknown alloy'); if(!(qty>=1)) throw new Error('Quantity must be at least 1');
-    const rho=A.density_kg_m3;
     const w = partType==='flanged'
-      ? calcWeightKg_flanged(od,id,overallLen,flangeOD,flangeThk,dimUnit,rho)
-      : calcWeightKg_dimUnits(od,id,len,dimUnit,rho);
-    const lkg=lme_usd_per_tonne/1000, base=lkg*(A.lme_multiplier ?? (A.copper_factor ?? 1));
-    const ops=A.ops_usd_per_kg??0, margin=A.margin_pct??12, premium=A.premium_usd_per_kg??0;
-    const cost=base+premium+ops, sell=cost*(1+margin/100);
+      ? calcWeightKg_flanged(od,id,overallLen,flangeOD,flangeThk,dimUnit,A.density_kg_m3)
+      : calcWeightKg_dimUnits(od,id,len,dimUnit,A.density_kg_m3);
+
+    const lkg = lme_usd_per_tonne/1000;
+    // NEW: use lme_multiplier first, fallback to copper_factor, else 1
+    const base = lkg * (A.lme_multiplier ?? A.copper_factor ?? 1);
+
+    const ops=A.ops_usd_per_kg??0, margin=A.margin_pct??0;
+    const cost=base+A.premium_usd_per_kg+ops, sell=cost*(1+margin/100);
     const unit_base=sell*w, disc=getDiscountPct(alloyKey,qty), unit_after=unit_base*(1-disc/100), total=unit_after*qty;
     return {weightKg:w, sell_per_kg:sell, unit_base, discountPct:disc, unit_after_discount:unit_after, total};
   }
 
-  /* ---------- SVG + ISO PREVIEW (same as your working version) ---------- */
+  /* ---------- LME + UI WIRING ---------- */
+  let lastQuote=null, lmeLoaded={value:null,as_of:''};
+
   function drawSketch({partType,od,id,len,overallLen,flangeOD,flangeThk,dimUnit}, target='sketch'){
     const svg=document.getElementById(target); while(svg.lastChild) svg.removeChild(svg.lastChild);
     const W=svg.viewBox.baseVal.width||560, H=svg.viewBox.baseVal.height||220, margin=36, x0=margin, cy=H/2;
@@ -394,7 +396,7 @@
     }
   }
 
-  /* ========= ISOMETRIC PREVIEW ========= */
+  /* ========= TRUE ISOMETRIC PREVIEW ========= */
   function drawIsoPreview(){
     const canvas = document.getElementById('iso'); if(!canvas) return;
     const ctx = canvas.getContext('2d'); const W=canvas.width, H=canvas.height;
@@ -418,10 +420,7 @@
       return; 
     }
 
-    // isometric projection
-    const c = Math.cos(Math.PI/6);   // cos 30°
-    const s = Math.sin(Math.PI/6);   // sin 30°
-    const k = Math.SQRT2;
+    const c = Math.cos(Math.PI/6), s = Math.sin(Math.PI/6), k = Math.SQRT2;
     const isoX = (x,y,z)=> (x - y) * c;
     const isoY = (x,y,z)=> (x + y) * s - z;
 
@@ -433,13 +432,10 @@
     const rx = (r)=> r * c * k * scale;
     const ry = (r)=> r * s * k * scale;
 
-    const centerX = W*0.44;
-    const centerY = H*0.62;
+    const centerX = W*0.44, centerY = H*0.62;
 
     function drawEllipse(cx, cy, rx_, ry_, stroke, fill, dashed=false){
-      ctx.save();
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, rx_, ry_, 0, 0, Math.PI*2);
+      ctx.save(); ctx.beginPath(); ctx.ellipse(cx, cy, rx_, ry_, 0, 0, Math.PI*2);
       if(dashed){ ctx.setLineDash([6,4]); }
       if(fill){ ctx.fillStyle = fill; ctx.fill(); }
       if(stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = 1.2; ctx.stroke(); }
@@ -467,21 +463,10 @@
       if(id>0){
         ctx.moveTo(CX+Rxi, CY);
         ctx.ellipse(CX, CY, Rxi, Ryi, 0, 0, Math.PI*2, true);
-        ctx.fillStyle = fill;
-        ctx.fill('evenodd');
-      } else {
-        ctx.fillStyle = fill;
-        ctx.fill();
-      }
-      ctx.lineWidth = 1.2;
-      ctx.strokeStyle = 'rgba(230,230,230,0.95)';
-      ctx.stroke();
-      if(id>0){
-        ctx.beginPath();
-        ctx.ellipse(CX, CY, Rxi, Ryi, 0, 0, Math.PI*2);
-        ctx.strokeStyle = 'rgba(230,230,230,0.95)';
-        ctx.stroke();
-      }
+        ctx.fillStyle = fill; ctx.fill('evenodd');
+      } else { ctx.fillStyle = fill; ctx.fill(); }
+      ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(230,230,230,0.95)'; ctx.stroke();
+      if(id>0){ ctx.beginPath(); ctx.ellipse(CX, CY, Rxi, Ryi, 0, 0, Math.PI*2); ctx.strokeStyle = 'rgba(230,230,230,0.95)'; ctx.stroke(); }
       ctx.restore();
     }
 
@@ -492,10 +477,8 @@
       const CFY = centerY + isoY(0,0,zFront*scale);
       const Rxo = rx(od/2);
 
-      const backR = {x: CBX + Rxo, y: CBY};
-      const backL = {x: CBX - Rxo, y: CBY};
-      const frontR = {x: CFX + Rxo, y: CFY};
-      const frontL = {x: CFX - Rxo, y: CFY};
+      const backR = {x: CBX + Rxo, y: CBY}, backL = {x: CBX - Rxo, y: CBY};
+      const frontR = {x: CFX + Rxo, y: CFY}, frontL = {x: CFX - Rxo, y: CFY};
 
       ctx.save();
       ctx.beginPath();
@@ -504,11 +487,8 @@
       ctx.lineTo(frontL.x, frontL.y);
       ctx.lineTo(backL.x, backL.y);
       ctx.closePath();
-      ctx.fillStyle = fill;
-      ctx.fill();
-      ctx.lineWidth = 1.0;
-      ctx.strokeStyle = 'rgba(230,230,230,0.85)';
-      ctx.stroke();
+      ctx.fillStyle = fill; ctx.fill();
+      ctx.lineWidth = 1.0; ctx.strokeStyle = 'rgba(230,230,230,0.85)'; ctx.stroke();
       ctx.restore();
     }
 
@@ -520,10 +500,8 @@
       const CFY = centerY + isoY(0,0,zFront*scale);
       const Rxi = rx(id/2);
 
-      const backR = {x: CBX + Rxi, y: CBY};
-      const backL = {x: CBX - Rxi, y: CBY};
-      const frontR = {x: CFX + Rxi, y: CFY};
-      const frontL = {x: CFX - Rxi, y: CFY};
+      const backR = {x: CBX + Rxi, y: CBY}, backL = {x: CBX - Rxi, y: CBY};
+      const frontR = {x: CFX + Rxi, y: CFY}, frontL = {x: CFX - Rxi, y: CFY};
 
       ctx.save();
       ctx.setLineDash([6,4]);
@@ -531,8 +509,7 @@
       ctx.moveTo(backR.x, backR.y); ctx.lineTo(frontR.x, frontR.y);
       ctx.moveTo(backL.x, backL.y); ctx.lineTo(frontL.x, frontL.y);
       ctx.strokeStyle = 'rgba(226,232,240,0.45)';
-      ctx.lineWidth = 1.0;
-      ctx.stroke();
+      ctx.lineWidth = 1.0; ctx.stroke();
       ctx.restore();
     }
 
@@ -544,6 +521,7 @@
       drawSideShell(Z0, Z1, OD, bronzeGrad);
       drawRingFace(Z1, OD, ID, bronzeGrad, false);
     }
+
     if(isFlanged && T_flange > 0){
       drawRingFace(Z1, FOD, ID, bronzeGrad, true);
       drawInnerSideHidden(Z1, Z2, ID);
@@ -556,69 +534,44 @@
     ctx.fillText('30°×30° isometric • illustrative only', 10, H-10);
   }
 
-  /* ---------- PAGE WIRING ---------- */
-  let lastQuote=null, lmeLoaded={value:null,as_of:''};
-
-  // build alloy select from JSON
-  async function loadAlloysAndRebuild(){
-    try{
-      const r = await fetch(ALLOYS_ENDPOINT, {cache:'no-store'});
-      if(!r.ok) throw new Error('HTTP '+r.status);
-      const j = await r.json();
-      if(j && j.alloys){
-        for(const [k,v] of Object.entries(j.alloys)){
-          if(!ALLOYS[k]) ALLOYS[k] = {};
-          Object.assign(ALLOYS[k], v);
-        }
-      }
-      const sel = document.getElementById('alloy');
-      const previously = sel.value;
-      sel.innerHTML = Object.entries(ALLOYS)
-        .map(([k,a])=>`<option value="${k}">${(a.label||k.replaceAll('_',' '))}</option>`)
-        .join('');
-      if(ALLOYS[previously]) sel.value = previously;
-    }catch(e){
-      console.warn('Alloys fetch failed; using baked-in list. Reason:', e?.message||e);
-    }
-  }
-
-  // apply ?alloy=… & ?back=… (and optional ?dim=, ?mass=)
-  function applyPrefillFromURL(){
-    const params = new URLSearchParams(window.location.search);
-
-    const alloyKey = params.get('alloy');
-    if (alloyKey && ALLOYS[alloyKey]) {
-      const sel = document.getElementById('alloy');
-      sel.value = alloyKey;
-    }
-
-    const dim = params.get('dim');   if (dim && (dim==='mm'||dim==='in'))   document.getElementById('dimUnits').value = dim;
-    const mass = params.get('mass'); if (mass && (mass==='kg'||mass==='lb')) document.getElementById('massUnits').value = mass;
-
-    const back = params.get('back');
-    if (back) {
-      const link = document.getElementById('backLink');
-      link.href = decodeURIComponent(back);
-      link.style.display = 'inline';
-    }
-
-    updateUnitLabels(); toggleFlange(); drawSketch(readDims()); drawIsoPreview();
-  }
-
-  function updateUnitLabels(){
-    const dim=$('#dimUnits').value;
-    $('#odUnitLbl').textContent=dim; $('#idUnitLbl').textContent=dim; $('#lenUnitLbl').textContent=dim;
-    $('#overallUnitLbl').textContent=dim; $('#thkUnitLbl').textContent=dim; $('#fodUnitLbl').textContent=dim;
-    $('#weightUnitLbl').textContent=$('#massUnits').value; $('#massUnitEcho').textContent=$('#massUnits').value;
-  }
-  function toggleFlange(){
-    const pt=$('#partType').value; const show=(pt==='flanged');
-    $('#flangeFields').style.display = show ? 'block':'none';
-    $('#rowLengthSleeve').style.display = show ? 'none':'grid';
-  }
-
   window.addEventListener('DOMContentLoaded', async () => {
     window.addEventListener('error', (ev)=>{ const d=$('#debug'); d.style.display='block'; d.textContent='Error: '+ev.message; });
+
+    /* NEW: fetch alloys.json, merge, rebuild dropdown */
+    async function loadAlloysAndRebuild(){
+      try{
+        const r = await fetch(ALLOYS_ENDPOINT, {cache:'no-store'});
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        const j = await r.json();
+        if(j && j.alloys){
+          for(const [k,v] of Object.entries(j.alloys)){
+            if(!ALLOYS[k]) ALLOYS[k] = {};
+            Object.assign(ALLOYS[k], v);
+          }
+        }
+        const sel = document.getElementById('alloy');
+        const current = sel.value;
+        sel.innerHTML = Object.entries(ALLOYS)
+          .map(([k,a])=>`<option value="${k}">${(a.label||k.replaceAll('_',' '))}</option>`)
+          .join('');
+        if(ALLOYS[current]) sel.value = current;
+      }catch(e){
+        console.warn('Alloys fetch failed; using baked-in list. Reason:', e?.message||e);
+      }
+    }
+    await loadAlloysAndRebuild();
+
+    function updateUnitLabels(){
+      const dim=$('#dimUnits').value;
+      $('#odUnitLbl').textContent=dim; $('#idUnitLbl').textContent=dim; $('#lenUnitLbl').textContent=dim;
+      $('#overallUnitLbl').textContent=dim; $('#thkUnitLbl').textContent=dim; $('#fodUnitLbl').textContent=dim;
+      $('#weightUnitLbl').textContent=$('#massUnits').value; $('#massUnitEcho').textContent=$('#massUnits').value;
+    }
+    function toggleFlange(){
+      const pt=$('#partType').value; const show=(pt==='flanged');
+      $('#flangeFields').style.display = show ? 'block':'none';
+      $('#rowLengthSleeve').style.display = show ? 'none':'grid';
+    }
 
     ['dimUnits','massUnits','partType'].forEach(id=>{
       document.getElementById(id).addEventListener('change', ()=>{ updateUnitLabels(); toggleFlange(); drawSketch(readDims()); drawIsoPreview(); });
@@ -627,13 +580,7 @@
       const el=document.getElementById(id); if(el){ el.addEventListener('input', ()=> { drawSketch(readDims()); drawIsoPreview(); }); }
     });
 
-    updateUnitLabels(); toggleFlange();
-
-    // load alloys list then apply URL prefill
-    await loadAlloysAndRebuild();
-    applyPrefillFromURL();
-
-    drawSketch(readDims()); drawIsoPreview();
+    updateUnitLabels(); toggleFlange(); drawSketch(readDims()); drawIsoPreview();
 
     // LME load + banners
     try{
@@ -679,7 +626,6 @@
         lastQuote = { ...d, qty, weight:weightOut, unitPrice:unit_after_discount, discountPct, total,
                       lme_usd_per_tonne:window._LME_USD_PER_TONNE, lme_as_of:lmeLoaded.as_of };
 
-        // update mailto link body
         const subject = encodeURIComponent('Quote request — Chicago Bronze');
         const dimsLines = d.partType==='flanged'
           ? `Part: Flanged\nOD (body): ${d.od} ${d.dimUnit}\nID: ${d.id} ${d.dimUnit}\nOverall: ${d.overallLen} ${d.dimUnit}\nFlange OD: ${d.flangeOD} ${d.dimUnit}\nT: ${d.flangeThk} ${d.dimUnit}`
@@ -695,7 +641,6 @@
       if(!lastQuote){ e.preventDefault(); showError('Please calculate a quote first.'); return; }
     });
 
-    // Save PDF = populate printDoc + print()
     document.getElementById('savePdfBtn').addEventListener('click', ()=>{
       if(!lastQuote){ showError('Please calculate a quote first.'); return; }
       const q=lastQuote;
@@ -728,6 +673,22 @@
       img.onload = function(){ ctx.clearRect(0,0,printCanvas.width,printCanvas.height); ctx.drawImage(img,0,0); window.print(); proxy.remove(); };
       img.src = svg64;
     });
+// --- Preselect alloy from URL (?alloy=KEY)
+(function preselectFromQuery(){
+  const params = new URLSearchParams(location.search);
+  const qAlloy = params.get('alloy');
+  if (!qAlloy) return;
+
+  const sel = document.getElementById('alloy');
+  if (!sel) return;
+
+  // If options are hard-coded OR built from JSON, this still works once options exist.
+  const has = Array.from(sel.options).some(o => o.value === qAlloy);
+  if (has) {
+    sel.value = qAlloy;
+    sel.dispatchEvent(new Event('change')); // refresh any echoes/sketches tied to change
+  }
+})();
 
   }); // DOMContentLoaded
 
