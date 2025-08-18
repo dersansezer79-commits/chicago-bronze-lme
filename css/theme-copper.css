@@ -41,3 +41,22 @@ th{background:#f5ebdf;color:#2f2a26} tr:nth-child(even) td{background:#fff8f0}
 
 /* Optional: a little depth on the pills when hovered */
 .trustRow .trust:hover{ box-shadow: 0 6px 18px rgba(138,90,59,.18); }
+/* --- FORCE LEGIBLE TEXT ON HEADER PILLS/CHIPS --- */
+.trustRow .trust,
+.trust,             /* fallback if container class differs */
+.pill, .chip {
+  background: var(--chip) !important;
+  border: 1px solid var(--line) !important;
+
+  /* kill gradient text */
+  -webkit-background-clip: border-box !important;
+  background-clip: border-box !important;
+  -webkit-text-fill-color: #5b4333 !important;  /* crucial on Blink/WebKit */
+  color: #5b4333 !important;
+
+  text-shadow: none !important;
+  font-weight: 700;
+}
+
+/* optional: darker tagline for readability */
+.tagline { color: #5b534b !important; }
