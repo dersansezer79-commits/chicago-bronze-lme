@@ -1,5 +1,5 @@
 {
-  "version": "2025-08-17T00:00:00.000Z",
+  "version": "2025-08-18T11:15:49.315Z",
   "defaults": {
     "ops_usd_per_kg": 0.5,
     "margin_pct": 12,
@@ -52,7 +52,7 @@
         "Cu": 60,
         "Zn": 22,
         "Mn": 3.5,
-        "Fe": 3.0,
+        "Fe": 3,
         "Al": 1.5
       },
       "lme_multiplier": 0.6,
@@ -84,7 +84,7 @@
         "Cu": 83,
         "Al": 10.5,
         "Fe": 3.5,
-        "Mn": 1.0
+        "Mn": 1
       },
       "lme_multiplier": 0.86,
       "premium_usd_per_kg": 11.9,
@@ -115,8 +115,8 @@
         "Cu": 79,
         "Al": 9.5,
         "Ni": 4.5,
-        "Fe": 4.0,
-        "Mn": 1.0
+        "Fe": 4,
+        "Mn": 1
       },
       "lme_multiplier": 0.82,
       "premium_usd_per_kg": 13,
@@ -258,7 +258,7 @@
       }
     },
     "C96900_Spinodal": {
-      "label": "C96900 Spinodal Bronze (CuNi15Sn8; ToughMet\u00ae 3 CX)",
+      "label": "C96900 Spinodal Bronze (CuNi15Sn8; ToughMet® 3 CX)",
       "density_kg_m3": 8900,
       "hardness_BHN": 285,
       "tensile_MPa": 760,
@@ -270,13 +270,13 @@
       },
       "composition": {
         "Cu": 76.7,
-        "Ni": 15.0,
-        "Sn": 8.0,
+        "Ni": 15,
+        "Sn": 8,
         "Fe": 0.2,
         "Mn": 0.1
       },
-      "lme_multiplier": 1.0,
-      "premium_usd_per_kg": null,
+      "lme_multiplier": 1,
+      "premium_usd_per_kg": 20.3,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -286,7 +286,7 @@
       "flange": false
     },
     "C72900_Spinodal": {
-      "label": "C72900 Spinodal Bronze (CuNi15Sn8; Hardiall\u00ae/ToughMet\u00ae 3)",
+      "label": "C72900 Spinodal Bronze (CuNi15Sn8; Hardiall®/ToughMet® 3)",
       "density_kg_m3": 8800,
       "hardness_BHN": 285,
       "tensile_MPa": 910,
@@ -297,12 +297,12 @@
         "text": "Good (spinodal hardened Cu-Ni-Sn)"
       },
       "composition": {
-        "Cu": 77.0,
-        "Ni": 15.0,
-        "Sn": 8.0
+        "Cu": 77,
+        "Ni": 15,
+        "Sn": 8
       },
-      "lme_multiplier": 1.0,
-      "premium_usd_per_kg": null,
+      "lme_multiplier": 1,
+      "premium_usd_per_kg": 20.5,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -324,12 +324,12 @@
       },
       "composition": {
         "Cu": 88.5,
-        "Sn": 6.0,
-        "Zn": 4.0,
+        "Sn": 6,
+        "Zn": 4,
         "Pb": 1.5
       },
-      "lme_multiplier": 1.0,
-      "premium_usd_per_kg": null,
+      "lme_multiplier": 1,
+      "premium_usd_per_kg": 12.2,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -351,11 +351,11 @@
       },
       "composition": {
         "Cu": 88.5,
-        "Sn": 11.0,
+        "Sn": 11,
         "Zn": 0.5
       },
-      "lme_multiplier": 1.0,
-      "premium_usd_per_kg": null,
+      "lme_multiplier": 1,
+      "premium_usd_per_kg": 12.4,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -376,14 +376,14 @@
         "text": "Poor"
       },
       "composition": {
-        "Cu": 86.0,
-        "Sn": 12.0,
+        "Cu": 86,
+        "Sn": 12,
         "Ni": 1.5,
         "Zn": 0.25,
         "Pb": 0.25
       },
-      "lme_multiplier": 1.0,
-      "premium_usd_per_kg": null,
+      "lme_multiplier": 1,
+      "premium_usd_per_kg": 12.6,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -405,12 +405,12 @@
       },
       "composition": {
         "Cu": 87.7,
-        "Sn": 10.0,
-        "Zn": 2.0,
+        "Sn": 10,
+        "Zn": 2,
         "Pb": 0.3
       },
-      "lme_multiplier": 1.0,
-      "premium_usd_per_kg": null,
+      "lme_multiplier": 1,
+      "premium_usd_per_kg": 12.4,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -436,8 +436,8 @@
         "Zn": 3.5,
         "Pb": 0.1
       },
-      "lme_multiplier": 1.0,
-      "premium_usd_per_kg": null,
+      "lme_multiplier": 1,
+      "premium_usd_per_kg": 12.3,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -459,12 +459,12 @@
       },
       "composition": {
         "Cu": 87.8,
-        "Sn": 10.0,
+        "Sn": 10,
         "Pb": 1.5,
         "Zn": 0.7
       },
-      "lme_multiplier": 1.0,
-      "premium_usd_per_kg": null,
+      "lme_multiplier": 1,
+      "premium_usd_per_kg": 12.4,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -486,13 +486,13 @@
       },
       "composition": {
         "Cu": 85.65,
-        "Sn": 10.0,
+        "Sn": 10,
         "Pb": 2.6,
         "Ni": 1.5,
         "Zn": 0.25
       },
-      "lme_multiplier": 1.0,
-      "premium_usd_per_kg": null,
+      "lme_multiplier": 1,
+      "premium_usd_per_kg": 12.5,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -513,12 +513,12 @@
         "text": "Excellent"
       },
       "composition": {
-        "Cu": 80.0,
-        "Sn": 10.0,
-        "Pb": 10.0
+        "Cu": 80,
+        "Sn": 10,
+        "Pb": 10
       },
-      "lme_multiplier": 1.0,
-      "premium_usd_per_kg": null,
+      "lme_multiplier": 1,
+      "premium_usd_per_kg": 12.3,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -539,13 +539,13 @@
         "text": "Very Good"
       },
       "composition": {
-        "Cu": 85.0,
-        "Sn": 5.0,
-        "Pb": 5.0,
-        "Zn": 5.0
+        "Cu": 85,
+        "Sn": 5,
+        "Pb": 5,
+        "Zn": 5
       },
-      "lme_multiplier": 1.0,
-      "premium_usd_per_kg": null,
+      "lme_multiplier": 1,
+      "premium_usd_per_kg": 11.2,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -568,12 +568,12 @@
       "composition": {
         "Cu": 87.5,
         "Al": 9.5,
-        "Fe": 2.0,
+        "Fe": 2,
         "Mn": 0.5,
         "Ni": 0.5
       },
-      "lme_multiplier": 1.0,
-      "premium_usd_per_kg": null,
+      "lme_multiplier": 1,
+      "premium_usd_per_kg": 12.2,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -594,14 +594,14 @@
         "text": "Moderate"
       },
       "composition": {
-        "Cu": 81.0,
-        "Al": 9.0,
-        "Ni": 5.0,
-        "Fe": 4.0,
-        "Mn": 1.0
+        "Cu": 81,
+        "Al": 9,
+        "Ni": 5,
+        "Fe": 4,
+        "Mn": 1
       },
-      "lme_multiplier": 1.0,
-      "premium_usd_per_kg": null,
+      "lme_multiplier": 1,
+      "premium_usd_per_kg": 14.7,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -622,14 +622,14 @@
         "text": "Good"
       },
       "composition": {
-        "Cu": 82.0,
-        "Al": 9.0,
-        "Ni": 4.0,
-        "Fe": 4.0,
-        "Mn": 1.0
+        "Cu": 82,
+        "Al": 9,
+        "Ni": 4,
+        "Fe": 4,
+        "Mn": 1
       },
-      "lme_multiplier": 1.0,
-      "premium_usd_per_kg": null,
+      "lme_multiplier": 1,
+      "premium_usd_per_kg": 13.5,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -651,14 +651,14 @@
       },
       "composition": {
         "Cu": 64.3,
-        "Al": 4.0,
+        "Al": 4,
         "Mn": 3.5,
-        "Fe": 3.0,
-        "Zn": 25.0,
+        "Fe": 3,
+        "Zn": 25,
         "Pb": 0.2
       },
-      "lme_multiplier": 1.0,
-      "premium_usd_per_kg": null,
+      "lme_multiplier": 1,
+      "premium_usd_per_kg": 11.2,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
