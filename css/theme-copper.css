@@ -25,3 +25,19 @@ th{background:#f5ebdf;color:#2f2a26} tr:nth-child(even) td{background:#fff8f0}
 .seg button{padding:8px 10px;background:transparent;border:0;color:var(--ink)}
 .seg button.active{background:var(--copper);color:#fff;font-weight:800}
 .sketchWrap,.previewWrap{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px}
+/* --- Fix hero chips legibility --- */
+.trustRow .trust{
+  background: var(--chip) !important;        /* warm pill background */
+  border: 1px solid var(--line) !important;
+  color: #5b4333 !important;                  /* solid text color */
+  font-weight: 700;
+  -webkit-background-clip: initial !important;/* undo gradient text */
+  background-clip: initial !important;
+  text-shadow: none !important;
+}
+
+/* Optional: make the brand tagline a touch darker for readability */
+.tagline{ color: #5b534b !important; }
+
+/* Optional: a little depth on the pills when hovered */
+.trustRow .trust:hover{ box-shadow: 0 6px 18px rgba(138,90,59,.18); }
