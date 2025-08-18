@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chicago Bronze — Alloy Selector</title>
+  <link rel="stylesheet" href="https://dersansezer79-commits.github.io/chicago-bronze-lme/css/theme-copper.css" />
+  <style>
+    .selector-wrap{max-width:1200px;margin:24px auto;padding:0 16px}
+    header.selector-hd{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+    .logo-square{width:24px;height:24px;border-radius:6px;background:#8a5a3b}
+    h1{font-size:28px;margin:0}
+    .sub{color:#6f6b66;font-size:13px}
+    .grid{display:grid;grid-template-columns:280px 1fr;gap:16px}
+    @media (max-width: 900px){.grid{grid-template-columns:1fr}}
+    .panel{padding:14px}
+    .filters h2{font-size:12px;margin:0 0 8px 0;color:#6f6b66;text-transform:uppercase;letter-spacing:.08em}
+    .search{display:flex;gap:8px;margin-bottom:10px}
+    .search input{flex:1}
+    .search .btn{padding:8px 10px}
+    .chips{display:flex;flex-wrap:wrap;gap:8px}
+    .chip{cursor:pointer}
+    .chip.active{background:#8a5a3b;color:#fff;border-color:#8a5a3b}
+    .cards{display:grid;grid-template-columns:repeat(3, minmax(0,1fr));gap:16px}
+    @media (max-width: 1100px){.cards{grid-template-columns:repeat(2, minmax(0,1fr))}}
+    @media (max-width: 700px){.cards{grid-template-columns:1fr}}
+    .card{display:flex;gap:10px;align-items:flex-start;padding:16px;border-radius:14px;border:1px solid #eadfce;background:#fffdf9;box-shadow:0 1px 0 rgba(0,0,0,.02),0 8px 22px rgba(34,24,18,.05)}
+    .swatch{width:22px;height:22px;border-radius:6px;background:linear-gradient(145deg,#a67142,#6e4a2c)}
+    .card h3{margin:0 0 6px 0;font-size:18px}
+    .card .meta{font-size:12px;color:#6f6b66}
+    .card .tags{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+    .tag{font-size:11px}
+    .actions{margin-top:10px;display:flex;gap:10px}
+    .btn{font-size:13px;background:#fff;border:1px solid #eadfce;border-radius:12px;padding:9px 12px;cursor:pointer}
+    .btn.primary{background:#8a5a3b;border-color:#8a5a3b;color:#fff}
+    .btn[disabled]{opacity:.6;cursor:not-allowed}
+    dialog{width:min(940px,96vw);border:none;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.15)}
+    dialog::backdrop{background:rgba(0,0,0,.2)}
+    .drawer{padding:0}
+    .drawer header{padding:14px 16px;border-bottom:1px solid #eadfce}
+    .drawer main{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px}
+    @media (max-width: 800px){.drawer main{grid-template-columns:1fr}}
+    table{width:100%;border-collapse:collapse;font-size:14px;background:#fffdfa}
+    th,td{border:1px solid #eadfce;padding:8px 10px;text-align:left}
+    th{background:#f5ebdf;font-weight:600;color:#2f2a26}
+    .drawer .footer{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #eadfce;padding:12px 16px;color:#6f6b66;font-size:12px}
+  </style>
+</head>
+<body>
+  <div class="selector-wrap">
+    <header class="selector-hd">
+      <div class="logo-square" aria-hidden="true"></div>
+      <div>
+        <h1>Alloy Selector</h1>
+        <div class="sub">Browse Chicago Bronze alloys. Click any card to view specs and download the PDF.</div>
+      </div>
+    </header>
+
+    <div class="grid">
+      <aside class="panel">
+        <div class="search">
+          <input id="q" type="search" placeholder="Search by UNS or name… (e.g., C95800, aluminum bronze)" />
+          <button class="btn" id="resetBtn" title="Clear">✕</button>
+        </div>
+        <h2>Filter by family</h2>
+        <div class="chips" id="chips"></div>
+      </aside>
+
+      <section class="panel">
+        <div id="count" class="sub" style="margin-bottom:8px"></div>
+        <div id="cards" class="cards"></div>
+      </section>
+    </div>
+  </div>
+
+  <dialog id="drawer" class="drawer">
+    <header><h3 id="drawerTitle" style="margin:0"></h3></header>
+    <main>
+      <section>
+        <h4>Composition (wt.% )</h4>
+        <table id="compTbl"></table>
+      </section>
+      <section>
+        <h4>Mechanical properties</h4>
+        <table id="mechTbl"></table>
+      </section>
+    </main>
+    <div class="footer">
+      <div id="footerL"></div>
+      <div style="display:flex; gap:8px">
+        <button id="pdfBtn" class="btn primary">Download Spec PDF</button>
+        <button class="btn" onclick="drawer.close()">Close</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script>
+    // Absolute PDF path so it works from anywhere (Wix, etc.)
+    const PDF_BASE = 'https://dersansezer79-commits.github.io/chicago-bronze-lme/specs/';
+    // Fallback to raw GH if CORS blocks Pages
+    const RAW_BASE = 'https://raw.githubusercontent.com/dersansezer79-commits/chicago-bronze-lme/refs/heads/main/specs/';
+
+    // Alloys JSON sources
+    const REPO = 'dersansezer79-commits/chicago-bronze-lme';
+    const ALLOY_SOURCES = [
+      () => 'https://dersansezer79-commits.github.io/chicago-bronze-lme/alloys.json?t=' + Date.now(),
+      () => 'https://raw.githubusercontent.com/'+REPO+'/refs/heads/main/alloys.json?t=' + Date.now()
+    ];
+    async function fetchFirstJSON(sources){
+      for (const make of sources){
+        const url = make && make(); if (!url) continue;
+        try{ const r = await fetch(url, {cache:'no-store', mode:'cors'}); if(!r.ok) throw 0; return await r.json(); }catch{}
+      } throw new Error('all alloy sources failed');
+    }
+
+    const state = { list:[], filter:'ALL', query:'', currentKey:'' };
+    const familyOf = (key, label='') => {
+      const s=(key+' '+(label||'')).toLowerCase();
+      if (s.includes('spinodal')||s.includes('toughmet')||s.includes('hardiall')) return 'Spinodal Bronze';
+      if (s.includes('nickel aluminum bronze')||s.includes('ams 4880')||s.includes('c95510')||s.includes('c95800')) return 'Nickel Aluminum Bronze';
+      if (s.includes('aluminum bronze')||s.includes('c95400')||s.includes('c95200')) return 'Aluminum Bronze';
+      if (s.includes('manganese bronze')||s.includes('c86300')||s.includes('c85700')) return 'Manganese Bronze';
+      if (s.includes('red brass')||s.includes('yellow brass')||s.includes('c83600')||s.includes('c85400')) return 'Brass';
+      return 'Tin/Leaded Bronzes';
+    };
+    function previewTags(a){ const out=[],c=a.composition||{}; if(c.Sn) out.push(`Sn ${c.Sn}%`); if(c.Al) out.push(`Al ${c.Al}%`); if(c.Ni) out.push(`Ni ${c.Ni}%`); if(a.hardness_BHN) out.push(`BHN ${a.hardness_BHN}`); if(a.tensile_MPa) out.push(`UTS ${a.tensile_MPa} MPa`); return out.slice(0,4); }
+    function tableFromObject(obj){ const keys=Object.keys(obj||{}); if(!keys.length) return '<tr><td colspan="2">—</td></tr>'; const order=['Cu',...keys.filter(k=>k!=='Cu')]; return '<tr><th>Element</th><th>Wt.%</th></tr>'+order.filter(k=>k in obj).map(k=>`<tr><td>${k}</td><td>${Number(obj[k]).toFixed(2)}%</td></tr>`).join(''); }
+
+    function buildChips(){ const fams=Array.from(new Set(state.list.map(a=>familyOf(a.key,a.label)))).sort(); const box=document.getElementById('chips'); box.innerHTML=''; const mk=n=>{const b=document.createElement('button'); b.className='chip'+(state.filter===n?' active':''); b.textContent=n; b.onclick=()=>{state.filter=state.filter===n?'ALL':n; render(); buildChips();}; return b;}; box.appendChild(mk('ALL')); fams.forEach(f=>box.appendChild(mk(f))); }
+    function render(){ const q=(state.query||'').toLowerCase(); const list=state.list.filter(a=>{ const fam=familyOf(a.key,a.label); const hit=!q||(a.key.toLowerCase().includes(q)||(a.label||'').toLowerCase().includes(q)); const okFam=state.filter==='ALL'||fam===state.filter; return hit&&okFam; }).sort((a,b)=>(a.label||a.key).localeCompare(b.label||b.key)); document.getElementById('count').textContent=`${list.length} alloys`; const wrap=document.getElementById('cards'); wrap.innerHTML=''; list.forEach(a=>wrap.appendChild(cardEl(a))); }
+    function cardEl(a){ const d=document.createElement('div'); d.className='card'; d.innerHTML=`<div class="swatch"></div><div><h3>${a.label||a.key}</h3><div class="meta">${familyOf(a.key,a.label)} · ${a.key}</div><div class="tags">${previewTags(a).map(t=>`<span class="tag pill">${t}</span>`).join('')}</div><div class="actions"><button class="btn" data-act="open">View Specs</button><button class="btn primary" data-act="dl" data-key="${a.key}">Download Spec PDF</button></div></div>`; d.querySelector('[data-act="open"]').onclick=()=>openDrawer(a); d.querySelector('[data-act="dl"]').onclick=()=>downloadPdf(a.key); return d; }
+    function openDrawer(a){ state.currentKey=a.key; document.getElementById('drawerTitle').textContent=`${a.label||a.key}`; document.getElementById('compTbl').innerHTML=tableFromObject(a.composition||{}); document.getElementById('mechTbl').innerHTML=`<tr><th>Property</th><th>Value</th></tr><tr><td>Density</td><td>${a.density_kg_m3||'—'} kg/m³</td></tr><tr><td>Hardness (BHN)</td><td>${a.hardness_BHN||'—'}</td></tr><tr><td>UTS</td><td>${a.tensile_MPa||'—'} MPa</td></tr><tr><td>Yield (0.2%)</td><td>${a.yield_MPa||'—'} MPa</td></tr><tr><td>Elongation</td><td>${a.elongation_pct||'—'} %</td></tr>`; document.getElementById('footerL').textContent=`${familyOf(a.key,a.label)} · ${a.key}`; document.getElementById('pdfBtn').onclick=()=>downloadPdf(a.key); drawer.showModal(); }
+    async function fetchPdfWithFallback(key){ const urls=[ PDF_BASE+encodeURIComponent(key)+'.pdf', RAW_BASE+encodeURIComponent(key)+'.pdf' ]; let lastErr=null; for(const u of urls){ try{ const r=await fetch(u, {cache:'no-store', mode:'cors'}); if(!r.ok) throw new Error('HTTP '+r.status); return await r.blob(); }catch(e){ lastErr=e; } } throw lastErr||new Error('fetch failed'); }
+    async function downloadPdf(key){ try{ const btns=document.querySelectorAll(`[data-key="${key}"][data-act="dl"], #pdfBtn`); btns.forEach(b=>b.disabled=true); const blob=await fetchPdfWithFallback(key); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=key+'.pdf'; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); btns.forEach(b=>b.disabled=false); }, 1000); }catch(e){ alert('Could not download this PDF.'); console.warn(e); const btns=document.querySelectorAll(`[data-key="${key}"][data-act="dl"], #pdfBtn`); btns.forEach(b=>b.disabled=false); } }
+    async function boot(){ try{ const j=await fetchFirstJSON(ALLOY_SOURCES); const src=j.alloys||j; state.list=Object.entries(src).map(([k,v])=>({key:k, ...v})); }catch(e){ state.list=[ {key:'C95800_NAB', label:'C95800 Nickel Aluminum Bronze (NAB)', density_kg_m3:7640, hardness_BHN:159, tensile_MPa:586, yield_MPa:241, elongation_pct:18, composition:{Cu:82, Al:9, Ni:4, Fe:4, Mn:1}}, {key:'C93200_SAE660', label:'C93200 Leaded Tin Bronze (SAE 660)', density_kg_m3:8780, hardness_BHN:65, tensile_MPa:240, yield_MPa:130, elongation_pct:10, composition:{Cu:83, Sn:7, Pb:7, Zn:3}} ]; } buildChips(); render(); document.getElementById('q').addEventListener('input', e=>{state.query=e.target.value; render();}); document.getElementById('resetBtn').addEventListener('click', ()=>{state.query=''; document.getElementById('q').value=''; render();}); }
+    boot();
+  </script>
+</body>
+</html>
