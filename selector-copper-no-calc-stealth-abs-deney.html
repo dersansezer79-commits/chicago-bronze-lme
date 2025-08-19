@@ -7,17 +7,15 @@
   <link rel="stylesheet" href="https://dersansezer79-commits.github.io/chicago-bronze-lme/css/theme-copper.css" />
   <style>
     .selector-wrap{max-width:1200px;margin:24px auto;padding:0 16px}
-    header.selector-hd{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+    header.selector-hd{display:flex;align-items:center;gap:12px;margin-bottom:8px}
     .logo-square{width:24px;height:24px;border-radius:6px;background:#8a5a3b}
     h1{font-size:28px;margin:0}
     .sub{color:#6f6b66;font-size:13px}
     .grid{display:grid;grid-template-columns:280px 1fr;gap:16px}
     @media (max-width: 900px){.grid{grid-template-columns:1fr}}
     .panel{padding:14px}
-    .filters h2{font-size:12px;margin:0 0 8px 0;color:#6f6b66;text-transform:uppercase;letter-spacing:.08em}
     .search{display:flex;gap:8px;margin-bottom:10px}
     .search input{flex:1}
-    .search .btn{padding:8px 10px}
     .chips{display:flex;flex-wrap:wrap;gap:8px}
     .chip{cursor:pointer}
     .chip.active{background:#8a5a3b;color:#fff;border-color:#8a5a3b}
@@ -28,7 +26,6 @@
     .swatch{width:22px;height:22px;border-radius:6px;background:linear-gradient(145deg,#a67142,#6e4a2c)}
     .card h3{margin:0 0 6px 0;font-size:18px}
     .card .meta{font-size:12px;color:#6f6b66}
-    .card .tags{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
     .tag{font-size:11px}
     .actions{margin-top:10px;display:flex;gap:10px;flex-wrap:wrap}
     .btn{font-size:13px;background:#fff;border:1px solid #eadfce;border-radius:12px;padding:9px 12px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}
@@ -48,6 +45,8 @@
     #cmpTray{position:fixed;left:0;right:0;bottom:0;display:none;background:#0b1020;color:#fff;padding:12px;border-top:1px solid #26324d;z-index:9999}
     #cmpTray table{background:transparent;color:#fff;border-color:#26324d}
     #cmpTray th,#cmpTray td{border-color:#26324d}
+    /* tiny debug line */
+    #dbg{font-size:12px;color:#8a5a3b;margin-left:12px}
   </style>
 </head>
 <body>
@@ -55,11 +54,10 @@
     <header class="selector-hd">
       <div class="logo-square" aria-hidden="true"></div>
       <div>
-        <h1>Alloy Selector</h1>
+        <h1>Alloy Selector <span id="dbg" aria-live="polite"></span></h1>
         <div class="sub">Browse Chicago Bronze alloys. Click any card to view specs and download the PDF.</div>
       </div>
       <div style="margin-left:auto">
-        <!-- GLOBAL CTA: change CALC_BASE in JS when your Wix link is ready -->
         <a id="goCalc" class="btn primary" href="#">Go to Price Calculator</a>
       </div>
     </header>
@@ -67,7 +65,7 @@
     <div class="grid">
       <aside class="panel">
         <div class="search">
-          <input id="q" type="search" placeholder="Search by UNS or name… (e.g., C95800, aluminum bronze)" />
+          <input id="q" type="search" placeholder="Search by UNS or name… (e.g., C95800)" />
           <button class="btn" id="resetBtn" title="Clear">✕</button>
         </div>
         <h2>Filter by family</h2>
@@ -81,7 +79,7 @@
     </div>
   </div>
 
-  <!-- Drawer with per-alloy actions -->
+  <!-- Drawer -->
   <dialog id="drawer" class="drawer">
     <header><h3 id="drawerTitle" style="margin:0"></h3></header>
     <main>
@@ -99,12 +97,12 @@
       <div style="display:flex; gap:8px; flex-wrap:wrap">
         <button id="calcBtn" class="btn">Price in Calculator</button>
         <button id="pdfBtn" class="btn primary">Download Spec PDF</button>
-        <button class="btn" onclick="drawer.close()">Close</button>
+        <button class="btn" id="closeDrawer">Close</button>
       </div>
     </div>
   </dialog>
 
-  <!-- Sticky Quick Compare tray -->
+  <!-- Quick Compare tray -->
   <div id="cmpTray">
     <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap">
       <strong>Quick compare</strong>
@@ -117,25 +115,34 @@
   </div>
 
   <script>
-    // ====== CONFIG (edit these when you move to Wix) ======
-    const CALC_BASE = "https://dersansezer79-commits.github.io/chicago-bronze-lme/index.html"; // ← CHANGE ME later
+  (function(){
+    // ====== CONFIG ======
+    const CALC_BASE = "https://dersansezer79-commits.github.io/chicago-bronze-lme/index.html"; // change to your Wix URL later
     const FULL_COMPARE_BASE = "https://dersansezer79-commits.github.io/chicago-bronze-lme/alloys-compare.html";
-    // Absolute PDF path so it works from anywhere (Wix, etc.)
-    const PDF_BASE = 'https://dersansezer79-commits.github.io/chicago-bronze-lme/specs/';
-    // Fallback to raw GH if CORS blocks Pages
-    const RAW_BASE = 'https://raw.githubusercontent.com/dersansezer79-commits/chicago-bronze-lme/refs/heads/main/specs/';
-    // Alloys JSON sources
-    const REPO = 'dersansezer79-commits/chicago-bronze-lme';
+    const PDF_BASE = "https://dersansezer79-commits.github.io/chicago-bronze-lme/specs/";
+    const RAW_BASE = "https://raw.githubusercontent.com/dersansezer79-commits/chicago-bronze-lme/refs/heads/main/specs/";
+
+    const IS_FILE = location.protocol === "file:";
+    const REPO = "dersansezer79-commits/chicago-bronze-lme";
     const ALLOY_SOURCES = [
-      () => 'https://dersansezer79-commits.github.io/chicago-bronze-lme/alloys.json?t=' + Date.now(),
-      () => 'https://raw.githubusercontent.com/'+REPO+'/refs/heads/main/alloys.json?t=' + Date.now()
+      () => IS_FILE ? "alloys.json" :
+            "https://dersansezer79-commits.github.io/chicago-bronze-lme/alloys.json?t=" + Date.now(),
+      () => "https://raw.githubusercontent.com/"+REPO+"/refs/heads/main/alloys.json?t=" + Date.now()
     ];
 
+    const dbg = (msg)=>{ const el=document.getElementById('dbg'); if(el) el.textContent = "• " + msg; };
+
     async function fetchFirstJSON(sources){
+      let last;
       for (const make of sources){
-        const url = make && make(); if (!url) continue;
-        try{ const r = await fetch(url, {cache:'no-store', mode:'cors'}); if(!r.ok) throw 0; return await r.json(); }catch{}
-      } throw new Error('all alloy sources failed');
+        try{
+          const url = make(); last = url;
+          const r = await fetch(url, { cache:"no-store" });
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          return await r.json();
+        }catch(e){ /* try next */ }
+      }
+      throw new Error("all alloy sources failed");
     }
 
     const state = { list:[], filter:'ALL', query:'', currentKey:'' };
@@ -203,7 +210,7 @@
         <div>
           <h3>${a.label||a.key}</h3>
           <div class="meta">${familyOf(a.key,a.label)} · ${a.key}</div>
-          <div class="tags">${previewTags(a).map(t=>`<span class="tag pill">${t}</span>`).join('')}</div>
+          <div class="tags">${previewTags(a).map(t=>`<span class="tag pill">${t}</span>`).join(' ')}</div>
           <div class="actions">
             <button class="btn" data-act="open">View Specs</button>
             <button class="btn primary" data-act="dl" data-key="${a.key}">Download Spec PDF</button>
@@ -217,6 +224,7 @@
 
     function openDrawer(a){
       state.currentKey=a.key;
+      const dlg = document.getElementById('drawer');
       document.getElementById('drawerTitle').textContent=`${a.label||a.key}`;
       document.getElementById('compTbl').innerHTML=tableFromObject(a.composition||{});
       document.getElementById('mechTbl').innerHTML=
@@ -228,23 +236,21 @@
          <tr><td>Elongation</td><td>${a.elongation_pct||'—'} %</td></tr>`;
       document.getElementById('footerL').textContent=`${familyOf(a.key,a.label)} · ${a.key}`;
 
-      // Wire drawer "Price in Calculator"
-      const cbtn = document.getElementById('calcBtn');
-      cbtn.onclick = ()=> {
+      // Drawer actions
+      document.getElementById('calcBtn').onclick = ()=>{
         if (!CALC_BASE || CALC_BASE === '#') { alert('Calculator link not set yet.'); return; }
         location.href = CALC_BASE + "?alloy=" + encodeURIComponent(a.key);
       };
-
-      // Wire drawer PDF button each time
       document.getElementById('pdfBtn').onclick=()=>downloadPdf(a.key);
-      drawer.showModal();
+      document.getElementById('closeDrawer').onclick=()=>dlg.close();
+      dlg.showModal();
     }
 
     async function fetchPdfWithFallback(key){
       const urls=[ PDF_BASE+encodeURIComponent(key)+'.pdf', RAW_BASE+encodeURIComponent(key)+'.pdf' ];
       let lastErr=null;
       for(const u of urls){
-        try{ const r=await fetch(u, {cache:'no-store', mode:'cors'}); if(!r.ok) throw new Error('HTTP '+r.status); return await r.blob(); }
+        try{ const r=await fetch(u, {cache:'no-store'}); if(!r.ok) throw new Error('HTTP '+r.status); return await r.blob(); }
         catch(e){ lastErr=e; }
       }
       throw lastErr||new Error('fetch failed');
@@ -252,27 +258,22 @@
 
     async function downloadPdf(key){
       try{
-        const btns=document.querySelectorAll(`[data-key="${key}"][data-act="dl"], #pdfBtn`);
-        btns.forEach(b=>b.disabled=true);
         const blob=await fetchPdfWithFallback(key);
         const a=document.createElement('a');
         a.href=URL.createObjectURL(blob);
         a.download=key+'.pdf';
         document.body.appendChild(a);
         a.click();
-        setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); btns.forEach(b=>b.disabled=false); }, 1000);
+        setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 800);
       }catch(e){
         alert('Could not download this PDF.');
         console.warn(e);
-        const btns=document.querySelectorAll(`[data-key="${key}"][data-act="dl"], #pdfBtn`);
-        btns.forEach(b=>b.disabled=false);
       }
     }
 
-    // ====== Quick Compare (mini compare) ======
+    // ====== Quick Compare ======
     const selected = new Set();
     const maxSel = 3;
-
     const CMP_FIELDS = [
       ["density_kg_m3","Density (kg/m³)"],
       ["hardness_BHN","Hardness (BHN)"],
@@ -280,8 +281,7 @@
       ["yield_MPa","Yield (MPa)"],
       ["elongation_pct","Elongation (%)"]
     ];
-
-    function getByKey(k){ return state.list.find(a => a.key === k) || {}; }
+    const getByKey = (k)=> state.list.find(a => a.key === k) || {};
 
     function updateTray(){
       const tray = document.getElementById('cmpTray');
@@ -308,7 +308,70 @@
       }
       html += '</table>';
       document.getElementById('cmpTable').innerHTML = html;
+      document.getElementById('openFullCompare').href = FULL_COMPARE_BASE + "?keys=" + keys.join(",");
+    }
 
-      // Link to full compare page with the chosen keys
-      document.getElementById('openFullCompare').href = FULL_COMPARE_BASE + "?keys=" + keys.join(
+    function toggleSelect(key, btn){
+      if (selected.has(key)){ selected.delete(key); if(btn) btn.textContent = "+ Compare"; }
+      else{
+        if (selected.size >= maxSel){ alert("Select up to " + maxSel + " alloys."); return; }
+        selected.add(key); if(btn) btn.textContent = "✓ Added";
+      }
+      updateTray();
+    }
 
+    document.addEventListener('click', (e)=>{
+      const btn = e.target.closest('.cmp-toggle');
+      if (!btn) return;
+      toggleSelect(btn.dataset.key, btn);
+    });
+
+    document.getElementById('sendToCalc').addEventListener('click', ()=>{
+      if (!CALC_BASE || CALC_BASE === '#') { alert('Calculator link not set yet.'); return; }
+      const pick = document.querySelector('#cmpTray input[name="pick"]:checked');
+      const key = pick ? pick.value : Array.from(selected)[0];
+      if (!key) return;
+      location.href = CALC_BASE + "?alloy=" + encodeURIComponent(key);
+    });
+
+    // ====== Boot ======
+    async function boot(){
+      try{
+        dbg("Loading…");
+        const j=await fetchFirstJSON(ALLOY_SOURCES);
+        const src=j.alloys||j;
+        state.list=Object.entries(src).map(([k,v])=>({key:k, ...v}));
+        dbg("Loaded " + state.list.length);
+      }catch(e){
+        console.error(e);
+        dbg("Failed to load alloys");
+        // minimal fallback so page is never empty
+        state.list=[
+          {key:'C95800_NAB', label:'C95800 Nickel Aluminum Bronze (NAB)', density_kg_m3:7640, hardness_BHN:159, tensile_MPa:586, yield_MPa:241, elongation_pct:18, composition:{Cu:82, Al:9, Ni:4, Fe:4, Mn:1}},
+          {key:'C93200_SAE660', label:'C93200 Leaded Tin Bronze (SAE 660)', density_kg_m3:8780, hardness_BHN:65, tensile_MPa:240, yield_MPa:130, elongation_pct:10, composition:{Cu:83, Sn:7, Pb:7, Zn:3}}
+        ];
+      }
+
+      buildChips();
+      render();
+
+      // search + clear
+      document.getElementById('q').addEventListener('input', e=>{state.query=e.target.value; render();});
+      document.getElementById('resetBtn').addEventListener('click', ()=>{state.query=''; document.getElementById('q').value=''; render();});
+
+      // Header "Go to Price Calculator" (passes last opened alloy if any)
+      const goCalc = document.getElementById('goCalc');
+      goCalc.addEventListener('click', (ev)=>{
+        if (!CALC_BASE || CALC_BASE === '#') { ev.preventDefault(); alert('Calculator link not set yet.'); return; }
+        goCalc.href = state.currentKey ? `${CALC_BASE}?alloy=${encodeURIComponent(state.currentKey)}` : CALC_BASE;
+      });
+    }
+
+    // global last-resort error -> show on page
+    window.addEventListener('error', (e)=>{ dbg("Script error: "+e.message); });
+
+    boot();
+  })();
+  </script>
+</body>
+</html>
