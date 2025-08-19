@@ -258,7 +258,7 @@
       }
     },
     "C96900_Spinodal": {
-      "label": "C96900 Spinodal Bronze (CuNi15Sn8; ToughMet® 3 CX)",
+      "label": "C96900 Spinodal Bronze (CuNi15Sn8)",
       "density_kg_m3": 8900,
       "hardness_BHN": 285,
       "tensile_MPa": 760,
@@ -286,7 +286,7 @@
       "flange": false
     },
     "C72900_Spinodal": {
-      "label": "C72900 Spinodal Bronze (CuNi15Sn8; Hardiall®/ToughMet® 3)",
+      "label": "C72900 Spinodal Bronze (CuNi15Sn8)",
       "density_kg_m3": 8800,
       "hardness_BHN": 285,
       "tensile_MPa": 910,
