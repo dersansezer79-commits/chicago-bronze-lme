@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Chicago Bronze — Price Calculator</title>
+  <meta name="robots" content="noindex,nofollow">
+  <style>
+    :root{
+      --bg:#0b0e13; --card:#0f172a; --txt:#eaf2ff; --muted:#9fb3d2;
+      --brand:#2563eb; --accent:#38bdf8; --radius:18px;
+      --bronze1:#a97142; --bronze2:#6e4a2c;
+      --heroImage: radial-gradient(1200px 600px at 70% -10%, rgba(3,102,214,.12), transparent 60%),
+                   radial-gradient(900px 500px at -10% 90%, rgba(56,189,248,.10), transparent 60%),
+                   radial-gradient(600px 400px at 120% 50%, rgba(59,130,246,.08), transparent 60%);
+    }
+    *{box-sizing:border-box}
+    body{margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--txt); background:#0b0e13; background-image:var(--heroImage)}
+    header{display:none!important}
+    .wrap{max-width:1280px; margin:22px auto 44px; padding:0 24px; display:grid; grid-template-columns:1.1fr .9fr; gap:24px}
+    @media (max-width:1080px){.wrap{grid-template-columns:1fr}}
+    .card{
+      background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+      border:1px solid rgba(148,163,184,.15);
+      border-top:3px solid rgba(56,189,248,.45);
+      border-radius:24px; box-shadow:0 10px 30px rgba(2,8,23,.30); padding:20px; backdrop-filter: blur(3px);
+    }
+    .label{font-size:12px; color:var(--muted); margin-bottom:6px}
+    .row{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+    input,select,button,textarea{width:100%; padding:12px 13px; border-radius:12px; border:1px solid rgba(226,232,240,.15); background:rgba(10,16,28,.80); color:var(--txt); font-size:14px}
+    input::placeholder{color:#6b7c93}
+    input:focus,select:focus,textarea:focus{outline:2px solid rgba(56,189,248,.45); border-color:rgba(56,189,248,.45)}
+    textarea{min-height:90px; resize:vertical}
+    button{background:linear-gradient(180deg,#2563eb,#38bdf8); color:#021524; border:none; font-weight:800; cursor:pointer; border-radius:14px; box-shadow:0 6px 16px rgba(37,99,235,.35)}
+    button:hover{transform:translateY(-1px); box-shadow:0 8px 20px rgba(37,99,235,.4)}
+    button:active{transform:translateY(0) scale(.997)}
+    button:disabled{opacity:.6; cursor:not-allowed; box-shadow:none}
+    .title{font-weight:900; letter-spacing:.01em; margin:0 0 10px; display:flex; align-items:center; gap:8px; font-size:18px;
+            background:linear-gradient(90deg,#93c5fd,#38bdf8); -webkit-background-clip:text; background-clip:text; color:transparent;}
+    .badge{padding:4px 8px; border-radius:999px; background:rgba(56,189,248,.12); color:#7dd3fc; font-size:12px; font-weight:700}
+    .result{display:flex; flex-direction:column; gap:14px}
+    .metric{display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border-radius:12px; background:rgba(12,20,36,.75); border:1px dashed rgba(148,163,184,.28)}
+    .metric .k{color:var(--muted)}
+    .metric .v{font-size:20px; font-weight:900}
+    .divider{height:1px; background:rgba(148,163,184,.22); margin:8px 0 2px}
+    .muted{color:var(--muted); font-size:13px}
+    .sketchWrap{background:rgba(255,255,255,.03); border:1px solid rgba(148,163,184,.18); border-radius:14px; padding:12px; margin-top:10px}
+    .previewWrap{margin-top:12px; background:rgba(255,255,255,.03); border:1px solid rgba(148,163,184,.18); border-radius:14px; padding:12px}
+    .previewTitle{font-size:12px; color:var(--muted); margin-bottom:6px}
+    canvas#iso{width:100%; max-width:520px; height:260px; display:block}
+    .err{color:#fda4af; font-size:12px; margin-top:8px; background:rgba(255,0,72,.10); border:1px solid rgba(255,0,80,.25); padding:8px 10px; border-radius:10px; display:none}
+    @media print {
+      body{background:#fff}
+      .wrap > section#inputsCard, .footer {display:none}
+      .printDoc {display:block; color:#000; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+      .printDoc h1{font-size:20px; margin:0 0 4px}
+      .printDoc small{color:#444}
+      .printGrid{display:grid; grid-template-columns:1.2fr .8fr; gap:16px; margin-top:12px}
+      .box{border:1px solid #999; border-radius:8px; padding:10px}
+      .box h3{margin:0 0 8px; font-size:14px}
+      .kv{display:flex; justify-content:space-between; margin:4px 0; font-size:12px}
+      #printSketch{width:100%; height:220px; border:1px solid #ccc; border-radius:6px}
+    }
+  </style>
+
+  <!-- Capacity Config Loader (cap-1.0) -->
+  <script>
+    const DEFAULT_CAP = {
+      schema:"cap-1.0", updated_at:"2025-08-20", units:"mm",
+      processes:{
+        centrifugal:{minOD:60,maxOD:1500,minID:0,maxLen:1200,maxWeightKg:800,minWall:6},
+        continuous:{minOD:20,maxOD:420,minID:0,maxLen:3000,maxWeightKg:500,minWall:3}
+      },
+      parts:{
+        bushing:{defaultProcess:"centrifugal"},
+        flanged:{defaultProcess:"centrifugal",minFlangeThk:8,minFlangeOverhang:10},
+        solid:{defaultProcess:"continuous"}
+      },
+      alloys:{ },
+      leadtime:{green_days:3,yellow_days:7,red_days:14},
+      ui:{exceptionEmail:"sales@example.com",exceptionSubject:"Capacity exception request",exceptionCC:[]}
+    };
+
+    const CAP_URL = new URLSearchParams(location.search).get("cap") ||
+      "https://dersansezer79-commits.github.io/chicago-bronze-lme/config/capacity.json";
+
+    async function loadCapConfig(){
+      const local = localStorage.getItem("cb_cap_config");
+      if(local){ try{ window.CAP = JSON.parse(local); return window.CAP; }catch(e){ console.warn("Local CAP parse failed:", e); } }
+      try{
+        const r = await fetch(CAP_URL, {cache:"no-store"});
+        if(r.ok){
+          const j = await r.json();
+          if(j.schema && j.schema.startsWith("cap-")){ window.CAP = j; return j; }
+        }
+      }catch(e){ console.warn("Remote CAP fetch failed:", e?.message||e); }
+      window.CAP = DEFAULT_CAP; return window.CAP;
+    }
+
+    function deepMerge(base, overrides){
+      const out = structuredClone(base);
+      if(!overrides) return out;
+      for(const k of Object.keys(overrides)){
+        if(overrides[k] && typeof overrides[k]==='object' && !Array.isArray(overrides[k])){
+          out[k] = deepMerge(out[k]||{}, overrides[k]);
+        } else { out[k] = overrides[k]; }
+      }
+      return out;
+    }
+    function mm(val, unit){ return unit==='mm' ? val : val*25.4; }
+    function deriveRules(d){
+      const cap = window.CAP || DEFAULT_CAP;
+      const part = cap.parts[d.partType] || cap.parts.bushing;
+      const baseProcKey = (cap.alloys?.[d.alloyKey]?.process) || part?.defaultProcess || "centrifugal";
+      const base = cap.processes[baseProcKey] || cap.processes.centrifugal;
+      const overrides = cap.alloys?.[d.alloyKey]?.overrides || {};
+      return { procKey: baseProcKey, rules: deepMerge(base, overrides), part };
+    }
+    function validateCapacityJSON(d){
+      const { rules, part } = deriveRules(d);
+      const OD = mm(d.od, d.dimUnit), ID = mm(d.id||0, d.dimUnit);
+      const L  = mm(d.partType==='flanged' ? d.overallLen : d.len, d.dimUnit);
+      if(!(OD>0)) return "Please enter OD.";
+      if(ID < (rules.minID ?? 0)) return `ID must be ≥ ${rules.minID} mm.`;
+      if(OD < rules.minOD) return `OD must be ≥ ${rules.minOD} mm.`;
+      if(OD > rules.maxOD) return `OD must be ≤ ${rules.maxOD} mm.`;
+      if(L  > rules.maxLen) return `Length must be ≤ ${rules.maxLen} mm.`;
+      const wall = (OD - ID)/2;
+      if(ID >= OD) return "ID must be less than OD.";
+      if(wall < rules.minWall) return `Wall too thin: need ≥ ${rules.minWall} mm (current ${wall.toFixed(1)} mm).`;
+      if(d.partType==='flanged'){
+        const T   = mm(d.flangeThk, d.dimUnit);
+        const FOD = mm(d.flangeOD, d.dimUnit);
+        if(part.minFlangeThk && T < part.minFlangeThk) return `Flange thickness must be ≥ ${part.minFlangeThk} mm.`;
+        if(part.minFlangeOverhang && (FOD - OD) < part.minFlangeOverhang) return `Flange OD should be ≥ OD + ${part.minFlangeOverhang} mm.`;
+      }
+      // Weight cap via compute()
+      try{
+        const q = compute({...d, qty:1, lme_usd_per_tonne: window._LME_USD_PER_TONNE || 9800});
+        const maxW = (window.CAP?.processes?.[deriveRules(d).procKey]?.maxWeightKg);
+        if(maxW && q.weightKg > maxW) return `Single-piece weight limit is ${maxW} kg (current ~${q.weightKg.toFixed(1)} kg).`;
+      }catch(_){}
+      return null;
+    }
+    window.Capacity = {
+      ready: loadCapConfig(),
+      validate: validateCapacityJSON,
+      config: () => (window.CAP || DEFAULT_CAP),
+      setConfig(obj){ window.CAP = obj; localStorage.setItem('cb_cap_config', JSON.stringify(obj)); }
+    };
+  </script>
+</head>
+<body>
+  <div class="wrap">
+    <section class="card" id="inputsCard">
+      <h2 class="title">Enter Dimension <span class="badge">Step 1</span></h2>
+      <div class="row">
+        <div>
+          <div class="label">Dimension units</div>
+          <select id="dimUnits"><option value="mm" selected>mm</option><option value="in">inch</option></select>
+        </div>
+        <div>
+          <div class="label">Weight units</div>
+          <select id="massUnits"><option value="kg" selected>kg</option><option value="lb">lb</option></select>
+        </div>
+      </div>
+      <div style="height:12px"></div>
+      <div class="row">
+        <div>
+          <div class="label">Part type</div>
+          <select id="partType"><option value="sleeve" selected>Sleeve (straight)</option><option value="flanged">Flanged sleeve</option></select>
+        </div>
+        <div>
+          <div class="label">Alloy</div>
+          <select id="alloy">
+            <option value="C93200_SAE660">C93200 (SAE 660)</option>
+            <option value="C86300_MnBronze">C86300 (Mn Bronze)</option>
+            <option value="C95400_AlBronze">C95400 (Al Bronze)</option>
+            <option value="C95500_NiAlBronze">C95500 (Ni-Al Bronze)</option>
+            <option value="C63000_NiAlBronze">C63000 (Ni-Al Bronze, wrought)</option>
+            <option value="C63200_NiAlBronze">C63200 (Ni-Al Bronze, wrought)</option>
+            <option value="CuSn12Ni2_C">CuSn12Ni2-C (EN CC483K)</option>
+            <option value="CuAl10Fe5_C">CuAl10Fe5Ni5-C (EN CC333G)</option>
+          </select>
+        </div>
+      </div>
+      <div style="height:12px"></div>
+      <div class="row">
+        <div>
+          <div class="label">Body OD (<span id="odUnitLbl">mm</span>)</div>
+          <input id="od" type="number" inputmode="decimal" placeholder="e.g. 200" min="0" step="0.001">
+        </div>
+        <div>
+          <div class="label">ID (<span id="idUnitLbl">mm</span>) — 0 if solid</div>
+          <input id="id" type="number" inputmode="decimal" placeholder="e.g. 100" min="0" step="0.001">
+        </div>
+      </div>
+      <div style="height:12px"></div>
+      <div class="row" id="rowLengthSleeve">
+        <div>
+          <div class="label">Length (<span id="lenUnitLbl">mm</span>)</div>
+          <input id="len" type="number" inputmode="decimal" placeholder="e.g. 1000" min="0" step="0.001">
+        </div>
+        <div>
+          <div class="label">Quantity (pcs)</div>
+          <input id="qty" type="number" inputmode="numeric" placeholder="e.g. 1" min="1" step="1" value="1">
+        </div>
+      </div>
+      <div id="flangeFields" style="display:none;">
+        <div class="row">
+          <div>
+            <div class="label">Overall length (<span id="overallUnitLbl">mm</span>)</div>
+            <input id="overallLen" type="number" inputmode="decimal" placeholder="e.g. 120" min="0" step="0.001">
+          </div>
+          <div>
+            <div class="label">Flange thickness T (<span id="thkUnitLbl">mm</span>)</div>
+            <input id="flangeThk" type="number" inputmode="decimal" placeholder="e.g. 20" min="0" step="0.001">
+          </div>
+        </div>
+        <div style="height:12px"></div>
+        <div class="row">
+          <div>
+            <div class="label">Flange OD (<span id="fodUnitLbl">mm</span>)</div>
+            <input id="flangeOD" type="number" inputmode="decimal" placeholder="e.g. 260" min="0" step="0.001">
+          </div>
+          <div>
+            <div class="label">Quantity (pcs)</div>
+            <input id="qty2" type="number" inputmode="numeric" placeholder="e.g. 1" min="1" step="1" value="1">
+          </div>
+        </div>
+      </div>
+      <div style="height:12px"></div>
+      <button id="calc">Calculate</button>
+      <div id="err" class="err"></div>
+      <div class="sketchWrap">
+        <div class="label">Sketch (not to scale)</div>
+        <svg id="sketch" width="100%" viewBox="0 0 560 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Part sketch">
+          <rect width="560" height="220" fill="none"/>
+        </svg>
+      </div>
+      <div class="previewWrap">
+        <div class="previewTitle">Isometric preview (illustrative)</div>
+        <canvas id="iso" width="560" height="260" aria-label="Isometric preview"></canvas>
+      </div>
+    </section>
+    <aside class="card">
+      <h2 class="title">Quote <span class="badge">Step 2</span></h2>
+      <div class="result">
+        <div class="metric"><span class="k">Weight (<span id="weightUnitLbl">kg</span>)</span><span id="weight" class="v">—</span></div>
+        <div class="metric" id="perKgWrap" style="display:none;"><span class="k">Price per <span id="massUnitEcho">kg</span> (USD)</span><span id="perKg" class="v">—</span></div>
+        <div class="metric"><span class="k">Unit price (USD)</span><span id="unit" class="v">—</span></div>
+        <div class="metric"><span class="k">Discount applied</span><span id="discount" class="v">—</span></div>
+        <div class="metric"><span class="k">Total price (USD)</span><span id="total" class="v">—</span></div>
+      </div>
+      <div class="divider"></div>
+      <div class="muted" style="margin-top:8px;">Part: <span id="partEcho" style="font-weight:700;">—</span></div>
+      <div class="muted" style="margin-top:4px;">Alloy: <span id="alloyEcho" style="font-weight:700;">—</span></div>
+      <div class="muted" style="margin-top:4px;">LME basis: <span id="lmeEcho" style="font-weight:700;">—</span></div>
+      <div style="height:12px"></div>
+      <button id="savePdfBtn" style="width:100%;">Save Quote as PDF</button>
+      <a id="mailtoLink" class="muted" href="#" style="display:block; margin-top:8px; text-align:center;">or email us</a>
+    </aside>
+  </div>
+
+  <div class="printDoc" id="printDoc" style="display:none;">
+    <h1>Chicago Bronze — Indicative Quote</h1>
+    <small id="printAsOf">As of —</small>
+    <div class="printGrid">
+      <div class="box">
+        <h3>Final Dimensions</h3>
+        <div class="kv"><span>Part</span><strong id="p_part">—</strong></div>
+        <div class="kv"><span>OD</span><strong id="p_od">—</strong></div>
+        <div class="kv"><span>ID</span><strong id="p_id">—</strong></div>
+        <div class="kv"><span>Length / Overall</span><strong id="p_len">—</strong></div>
+        <div class="kv" id="p_flange_od_row" style="display:none;"><span>Flange OD</span><strong id="p_fod">—</strong></div>
+        <div class="kv" id="p_flange_t_row" style="display:none;"><span>Flange T</span><strong id="p_ft">—</strong></div>
+        <div class="kv"><span>Units</span><strong id="p_units">—</strong></div>
+        <div class="kv"><span>Alloy</span><strong id="p_alloy">—</strong></div>
+        <canvas id="printSketch" width="560" height="220"></canvas>
+      </div>
+      <div class="box">
+        <h3>Price Summary (USD)</h3>
+        <div class="kv"><span>Weight</span><strong id="p_weight">—</strong></div>
+        <div class="kv"><span>Unit price</span><strong id="p_unit">—</strong></div>
+        <div class="kv"><span>Discount</span><strong id="p_disc">—</strong></div>
+        <div class="kv"><span>Total</span><strong id="p_total">—</strong></div>
+        <div class="kv"><span>LME</span><strong id="p_lme">—</strong></div>
+        <div class="kv"><span>Note</span><strong>Indicative pricing. Contact us for a certified quote.</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ---------- CONFIG ---------- */
+    const LME_ENDPOINT = 'https://dersansezer79-commits.github.io/chicago-bronze-lme/lme.json?t=' + Date.now();
+    const ALLOYS_ENDPOINT = 'https://dersansezer79-commits.github.io/chicago-bronze-lme/alloys.json?t=' + Date.now();
+    const LME_FALLBACK_USD_PER_TONNE = 9803;
+    const DISCOUNT_TABLE = [{min:1,pct:0},{min:10,pct:1},{min:25,pct:2},{min:50,pct:3},{min:100,pct:5}];
+    const DISCOUNT_OVERRIDES = {};
+    const SHOW_PRICE_PER_KG = false;
+
+    /* Fallback baked-in alloys (overridden by alloys.json if it loads) */
+    const ALLOYS = {
+      C93200_SAE660:{density_kg_m3:8800,lme_multiplier:.83,premium_usd_per_kg:2.4,ops_usd_per_kg:.5,margin_pct:12,label:"C93200 (SAE 660)"},
+      C86300_MnBronze:{density_kg_m3:8500,lme_multiplier:.6,premium_usd_per_kg:3.1,ops_usd_per_kg:.5,margin_pct:12,label:"C86300 (Mn Bronze)"},
+      C95400_AlBronze:{density_kg_m3:7600,lme_multiplier:.86,premium_usd_per_kg:1.9,ops_usd_per_kg:.5,margin_pct:12,label:"C95400 (Al Bronze)"},
+      C95500_NiAlBronze:{density_kg_m3:7700,lme_multiplier:.82,premium_usd_per_kg:3.0,ops_usd_per_kg:.6,margin_pct:12,label:"C95500 (Ni-Al Bronze)"},
+      C63000_NiAlBronze:{density_kg_m3:7580,lme_multiplier:.8,premium_usd_per_kg:2.8,ops_usd_per_kg:.6,margin_pct:12,label:"C63000 (Ni-Al Bronze, wrought)"},
+      C63200_NiAlBronze:{density_kg_m3:7600,lme_multiplier:.8,premium_usd_per_kg:2.9,ops_usd_per_kg:.6,margin_pct:12,label:"C63200 (Ni-Al Bronze, wrought)"},
+      CuSn12Ni2_C:{density_kg_m3:8900,lme_multiplier:.86,premium_usd_per_kg:3.2,ops_usd_per_kg:.5,margin_pct:12,label:"CuSn12Ni2-C (EN CC483K)"},
+      CuAl10Fe5_C:{density_kg_m3:7650,lme_multiplier:.82,premium_usd_per_kg:3.0,ops_usd_per_kg:.6,margin_pct:12,label:"CuAl10Fe5Ni5-C (EN CC333G)"}
+    };
+
+    /* ---------- HELPERS ---------- */
+    const $ = (s)=>document.querySelector(s);
+    const INCH_TO_MM = 25.4, LB_PER_KG = 2.20462262185;
+    function showError(m){const e=$('#err'); e.style.display='block'; e.textContent=m}
+    function clearError(){const e=$('#err'); e.style.display='none'; e.textContent=''}
+    function round(n,d=3){return Number(n.toFixed(d))}
+    function fmt(n,d=2){return Number(n).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d})}
+    function toMetersFromInputs(v,u){return u==='mm'?Number(v)/1000:Number(v)*INCH_TO_MM/1000}
+
+    function calcWeightKg_dimUnits(od,id,l,u,rho){ const ODm=toMetersFromInputs(od,u), IDm=toMetersFromInputs(id||0,u), Lm=toMetersFromInputs(l,u);
+      if(!(ODm>0&&Lm>0)||IDm<0||IDm>=ODm) throw new Error('Check dimensions (OD>ID>=0, length>0).');
+      const V=Math.PI/4*(ODm*ODm-IDm*IDm)*Lm; return V*rho; }
+    function calcWeightKg_flanged(odb,id,ol,fod,t,u,rho){ const toM=(v)=>toMetersFromInputs(v,u), Tm=toM(t), Lm_body=toM(ol)-Tm; if(Lm_body<0) throw new Error('Overall length must be ≥ flange thickness.');
+      const ODm_body=toM(odb), IDm=toM(id), ODm_fl=toM(fod); if(!(ODm_body>0)||!(ODm_fl>0)||!(IDm>=0)) throw new Error('Check dimensions.'); if(IDm>=ODm_body) throw new Error('ID must be < body OD.');
+      if(ODm_fl<ODm_body) throw new Error('Flange OD must be ≥ body OD.'); const Vb=Math.PI/4*(ODm_body**2-IDm**2)*Lm_body, Vf=Math.PI/4*(ODm_fl**2-IDm**2)*Tm; return (Vb+Vf)*rho; }
+    function getDiscountPct(a,q){const t=(DISCOUNT_OVERRIDES[a]||DISCOUNT_TABLE); let p=0; for(const r of t){if(q>=r.min)p=r.pct} return p;}
+
+    function compute({partType,od,id,len,overallLen,flangeOD,flangeThk,alloyKey,qty,lme_usd_per_tonne,dimUnit}){
+      const A=ALLOYS[alloyKey]; if(!A) throw new Error('Unknown alloy'); if(!(qty>=1)) throw new Error('Quantity must be at least 1');
+      const w = partType==='flanged' ? calcWeightKg_flanged(od,id,overallLen,flangeOD,flangeThk,dimUnit,A.density_kg_m3) : calcWeightKg_dimUnits(od,id,len,dimUnit,A.density_kg_m3);
+      const lkg=lme_usd_per_tonne/1000; const base=lkg*(A.lme_multiplier ?? A.copper_factor ?? 1); const ops=A.ops_usd_per_kg??0, margin=A.margin_pct??0; const cost=base+A.premium_usd_per_kg+ops, sell=cost*(1+margin/100);
+      const unit_base=sell*w, disc=getDiscountPct(alloyKey,qty), unit_after=unit_base*(1-disc/100), total=unit_after*qty; return {weightKg:w, sell_per_kg:sell, unit_base, discountPct:disc, unit_after_discount:unit_after, total};
+    }
+
+    /* ---------- LME + ALLOYS + UI ---------- */
+    let lastQuote=null;
+
+    function drawSketch(d, target='sketch'){
+      const svg=document.getElementById(target); if(!svg) return; while(svg.lastChild) svg.removeChild(svg.lastChild);
+      const W=svg.viewBox.baseVal.width||560, H=svg.viewBox.baseVal.height||220, margin=36, x0=margin, cy=H/2;
+      const mmf=(u,v)=>u==='mm'?v:v*25.4; const ODmm=mmf(d.dimUnit,d.od||0), IDmm=mmf(d.dimUnit,d.id||0), Lmm=d.partType==='flanged'?mmf(d.dimUnit,d.overallLen||0):mmf(d.dimUnit,d.len||0);
+      const Tmm=d.partType==='flanged'?mmf(d.dimUnit,d.flangeThk||0):0, FODmm=d.partType==='flanged'?mmf(d.dimUnit,d.flangeOD||0):ODmm; const availW=W-2*margin, availH=H-2*margin, maxOD=Math.max(ODmm||1,FODmm||1);
+      const sx=Lmm>0?Math.min(availW/(Lmm||1),2.5):1.5, sy=Math.min(availH/(maxOD||1),2.5); const bodyLen_px=Math.max(0,Lmm-Tmm)*sx, flangeLen_px=Tmm*sx, bodyHalf_px=ODmm/2*sy, flangeHalf_px=FODmm/2*sy, boreHalf_px=IDmm/2*sy;
+      function R(x,y,w,h,o={}){const r=document.createElementNS('http://www.w3.org/2000/svg','rect'); r.setAttribute('x',x);r.setAttribute('y',y);r.setAttribute('width',w);r.setAttribute('height',h); r.setAttribute('fill','rgba(201,148,95,0.18)');r.setAttribute('stroke','rgba(226,232,240,0.95)');r.setAttribute('stroke-width','2'); if(o.dash)r.setAttribute('stroke-dasharray',o.dash); svg.appendChild(r);}
+      function L(x1,y1,x2,y2,o={}){const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',x1);l.setAttribute('y1',y1);l.setAttribute('x2',x2);l.setAttribute('y2',y2); l.setAttribute('stroke',o.color||'rgba(148,163,184,0.95)');l.setAttribute('stroke-width',o.w||1);if(o.dash)l.setAttribute('stroke-dasharray',o.dash);svg.appendChild(l);}
+      function T(x,y,t){ const X=Math.min(W-8,Math.max(8,x)); const Y=Math.min(H-8,Math.max(14,y));
+        const s=document.createElementNS('http://www.w3.org/2000/svg','text'); s.setAttribute('x',X); s.setAttribute('y',Y);
+        s.setAttribute('fill','#3b82f6'); s.setAttribute('font-size','13'); s.setAttribute('font-weight','700');
+        s.setAttribute('paint-order','stroke'); s.setAttribute('stroke','rgba(2,8,23,.92)'); s.setAttribute('stroke-width','2'); s.setAttribute('stroke-linejoin','round');
+        s.setAttribute('text-anchor','middle'); s.setAttribute('font-family','Inter, system-ui, sans-serif'); s.textContent=t; svg.appendChild(s);}
+      function Arrow(x1,y1,x2,y2,label){ const c='#38bdf8'; L(x1,y1,x2,y2,{color:c,w:1.6});
+        function tip(x,y,dx,dy){ L(x,y,x-dx+dy*.5,y-dy-dx*.5,{color:c,w:1.6}); L(x,y,x-dx-dy*.5,y-dy+dx*.5,{color:c,w:1.6}); }
+        tip(x1,y1,(x1<x2?-6:6),(y1<y2?-6:6)); tip(x2,y2,(x1<x2?6:-6),(y1<y2?6:-6)); if(label) T((x1+x2)/2,(y1+y2)/2-8,label);}
+      const yTop=cy-bodyHalf_px;
+      if((Lmm>0||Tmm>0) && ODmm>0){
+        if(d.partType==='flanged'){
+          R(x0,yTop,bodyLen_px,bodyHalf_px*2); const xFl=x0+bodyLen_px, yFlTop=cy-flangeHalf_px; R(xFl,yFlTop,flangeLen_px,flangeHalf_px*2);
+          if(IDmm>0){ L(x0,cy-boreHalf_px,x0+bodyLen_px+flangeLen_px,cy-boreHalf_px); L(x0,cy+boreHalf_px,x0+bodyLen_px+flangeLen_px,cy-boreHalf_px); }
+          Arrow(x0,yTop-18,x0+bodyLen_px,yTop-18,`Body ${(Lmm-Tmm).toFixed(0)} ${d.dimUnit}`);
+          Arrow(x0+bodyLen_px,yFlTop+flangeHalf_px*2+18,x0+bodyLen_px+flangeLen_px,yFlTop+flangeHalf_px*2+18,`T ${Tmm.toFixed(0)} ${d.dimUnit}`);
+          Arrow(x0,yTop-36,x0+bodyLen_px+flangeLen_px,yTop-36,`Overall ${Lmm.toFixed(0)} ${d.dimUnit}`);
+          Arrow(x0-24,cy-bodyHalf_px,x0-24,cy+bodyHalf_px,`OD ${ODmm.toFixed(0)} ${d.dimUnit}`);
+          if(FODmm>ODmm){ Arrow(x0+bodyLen_px+flangeLen_px+24,cy-flangeHalf_px,x0+bodyLen_px+flangeLen_px+24,cy+flangeHalf_px,`FOD ${FODmm.toFixed(0)} ${d.dimUnit}`); }
+          if(IDmm>0){ Arrow(x0-48,cy-boreHalf_px,x0-48,cy+boreHalf_px,`ID ${IDmm.toFixed(0)} ${d.dimUnit}`); }
+        } else {
+          R(x0,yTop,Lmm*sx,bodyHalf_px*2);
+          if(IDmm>0){ L(x0,cy-boreHalf_px,x0+Lmm*sx,cy-boreHalf_px); L(x0,cy+boreHalf_px,x0+Lmm*sx,cy-boreHalf_px); }
+          Arrow(x0,yTop-18,x0+Lmm*sx,yTop-18,`L ${Lmm.toFixed(0)} ${d.dimUnit}`);
+          Arrow(x0-24,cy-bodyHalf_px,x0-24,cy+bodyHalf_px,`OD ${ODmm.toFixed(0)} ${d.dimUnit}`);
+          if(IDmm>0){ Arrow(x0-48,cy-boreHalf_px,x0-48,cy+boreHalf_px,`ID ${IDmm.toFixed(0)} ${d.dimUnit}`); }
+        }
+      } else {
+        const s=document.createElementNS('http://www.w3.org/2000/svg','text'); s.setAttribute('x',36); s.setAttribute('y',H/2);
+        s.setAttribute('fill','rgba(148,163,184,.9)'); s.setAttribute('font-size','12'); s.setAttribute('font-family','Inter, system-ui, sans-serif'); s.textContent='Enter dimensions to preview the sketch.'; svg.appendChild(s);
+      }
+    }
+
+    function drawIsoPreview(){
+      const canvas=document.getElementById('iso'); if(!canvas) return; const ctx=canvas.getContext('2d'); const W=canvas.width, H=canvas.height; ctx.clearRect(0,0,W,H);
+      const d=readDims(); const dimUnit=d.dimUnit; const mmv=(v)=> dimUnit==='mm' ? Number(v||0) : Number(v||0)*25.4;
+      const OD=mmv(d.od); const ID=mmv(d.id||0); const isFlanged=d.partType==='flanged'; const L_overall=isFlanged?mmv(d.overallLen):mmv(d.len); const T_flange=isFlanged?mmv(d.flangeThk):0; const FOD=isFlanged?mmv(d.flangeOD):OD; const L_body=Math.max(0,L_overall-T_flange);
+      if(!(OD>0)||!(L_overall>0)){ ctx.fillStyle='rgba(148,163,184,.9)'; ctx.fillText('Enter dimensions to preview the isometric.',18,H/2); return; }
+      const scale=Math.min(W*0.6/Math.max(L_overall,OD,FOD), H*0.6/Math.max(OD,FOD)); const cx=W*0.2, cy=H*0.65;
+      function ellipse(cx,cy,rx,ry,stroke,fill,dash=false){ ctx.save(); if(dash) ctx.setLineDash([6,4]); ctx.beginPath(); ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2); if(fill){ctx.fillStyle=fill; ctx.fill();} if(stroke){ctx.strokeStyle=stroke; ctx.lineWidth=1.2; ctx.stroke();} ctx.restore(); }
+      const bronzeGrad = ctx.createLinearGradient(cx, cy-40, cx+L_overall*scale+140, cy+40); bronzeGrad.addColorStop(0,'rgba(169,113,66,0.35)'); bronzeGrad.addColorStop(1,'rgba(110,74,44,0.60)');
+      // body
+      const rx=OD/2*0.7*scale, ry=OD/2*0.35*scale; const rx_i=ID>0?ID/2*0.7*scale:0, ry_i=ID>0?ID/2*0.35*scale:0;
+      ellipse(cx,cy,rx,ry,'rgba(226,232,240,0.95)',bronzeGrad,false);
+      ellipse(cx+L_body*scale,cy,rx,ry,'rgba(226,232,240,0.95)',bronzeGrad,false);
+      ctx.save(); ctx.beginPath(); ctx.moveTo(cx,cy-ry); ctx.lineTo(cx+L_body*scale,cy-ry); ctx.lineTo(cx+L_body*scale,cy+ry); ctx.lineTo(cx,cy+ry); ctx.closePath(); ctx.fillStyle=bronzeGrad; ctx.globalAlpha=0.85; ctx.fill(); ctx.restore();
+      if(ID>0){
+        ellipse(cx,cy,rx_i,ry_i,'rgba(56,189,248,0.55)',null,true);
+        ellipse(cx+L_body*scale,cy,rx_i,ry_i,'rgba(56,189,248,0.55)',null,true);
+      }
+      if(isFlanged && T_flange>0){
+        const rxF=FOD/2*0.7*scale, ryF=FOD/2*0.35*scale;
+        ellipse(cx+L_body*scale,cy,rxF,ryF,'rgba(226,232,240,0.95)',bronzeGrad,false);
+        ellipse(cx+L_overall*scale,cy,rxF,ryF,'rgba(226,232,240,0.95)',bronzeGrad,false);
+        ctx.save(); ctx.beginPath(); ctx.moveTo(cx+L_body*scale,cy-ryF); ctx.lineTo(cx+L_overall*scale,cy-ryF); ctx.lineTo(cx+L_overall*scale,cy+ryF); ctx.lineTo(cx+L_body*scale,cy+ryF); ctx.closePath(); ctx.fillStyle=bronzeGrad; ctx.globalAlpha=0.85; ctx.fill(); ctx.restore();
+      }
+      // subtle labels
+      ctx.fillStyle='#93c5fd'; ctx.font='bold 12px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial';
+      ctx.fillText(`L ${Math.round(L_overall)} ${d.dimUnit}`, cx + (L_overall*scale)/2 - 10, cy - (ry+14));
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      function updateUnitLabels(){ const dim=$('#dimUnits').value; $('#odUnitLbl').textContent=dim; $('#idUnitLbl').textContent=dim; $('#lenUnitLbl').textContent=dim; $('#overallUnitLbl').textContent=dim; $('#thkUnitLbl').textContent=dim; $('#fodUnitLbl').textContent=dim; $('#weightUnitLbl').textContent=$('#massUnits').value; $('#massUnitEcho').textContent=$('#massUnits').value; }
+      function toggleFlange(){ const pt=$('#partType').value; const show=(pt==='flanged'); $('#flangeFields').style.display=show?'block':'none'; $('#rowLengthSleeve').style.display=show?'none':'grid'; }
+      ['dimUnits','massUnits','partType'].forEach(id=>{ document.getElementById(id).addEventListener('change', ()=>{ updateUnitLabels(); toggleFlange(); drawSketch(readDims()); drawIsoPreview(); }); });
+      ['od','id','len','overallLen','flangeThk','flangeOD'].forEach(id=>{ const el=document.getElementById(id); if(el){ el.addEventListener('input', ()=> { drawSketch(readDims()); drawIsoPreview(); }); } });
+      updateUnitLabels(); toggleFlange(); drawSketch(readDims()); drawIsoPreview();
+
+      // Load alloys overrides (optional)
+      try{
+        const r=await fetch(ALLOYS_ENDPOINT,{cache:'no-store'}); if(r.ok){ const j=await r.json(); if(j && j.alloys){ for(const [k,v] of Object.entries(j.alloys)){ if(!ALLOYS[k]) ALLOYS[k]={}; Object.assign(ALLOYS[k], v); } } }
+      }catch(e){ console.warn('Alloys fetch failed:', e?.message||e); }
+
+      // LME load
+      try{
+        const r=await fetch(LME_ENDPOINT,{cache:'no-store'}); if(!r.ok) throw new Error('HTTP '+r.status);
+        const j=await r.json(); if(typeof j.usd_per_tonne!=='number') throw new Error('Bad JSON');
+        window._LME_USD_PER_TONNE=j.usd_per_tonne; document.getElementById('lmeEcho')?.textContent='$'+fmt(j.usd_per_tonne,0)+'/t'+(j.as_of?(' • '+j.as_of):'');
+      }catch(e){
+        window._LME_USD_PER_TONNE=LME_FALLBACK_USD_PER_TONNE; document.getElementById('lmeEcho')?.textContent='$'+fmt(LME_FALLBACK_USD_PER_TONNE,0)+'/t (fallback)';
+      }
+
+      // Capacity Guard then compute
+      const btn = document.getElementById('calc');
+      btn.addEventListener('click', function(e){
+        const d = readDims(); const msg = window.Capacity.validate(d);
+        if(msg){ e.preventDefault(); showError(msg); return; }
+        clearError();
+        try{
+          const qty = Number((d.partType==='flanged' ? (document.getElementById('qty2').value||'1') : (document.getElementById('qty').value||'1')));
+          const {weightKg, discountPct, unit_after_discount, total} = compute({...d, qty, lme_usd_per_tonne:window._LME_USD_PER_TONNE});
+          const massUnit = d.massUnit; const weightOut=(massUnit==='lb') ? weightKg*LB_PER_KG : weightKg;
+          document.getElementById('weight').textContent = fmt(round(weightOut, massUnit==='lb'?2:3), massUnit==='lb'?2:3);
+          document.getElementById('unit').textContent = '$ ' + fmt(round(unit_after_discount,2),2);
+          document.getElementById('discount').textContent = discountPct ? (discountPct + '%') : '—';
+          document.getElementById('total').textContent = '$ ' + fmt(round(total,2),2);
+          document.getElementById('partEcho').textContent = d.partType==='flanged' ? 'Flanged sleeve' : 'Sleeve (straight)';
+          document.getElementById('alloyEcho').textContent = (ALLOYS[d.alloyKey]?.label || d.alloyKey.replaceAll('_',' '));
+          lastQuote = { ...d, qty, weight:weightOut, unitPrice:unit_after_discount, discountPct, total, lme_usd_per_tonne: window._LME_USD_PER_TONNE };
+          const subject = encodeURIComponent('Quote request — Chicago Bronze');
+          const dimsLines = d.partType==='flanged' ? `Part: Flanged\nOD (body): ${d.od} ${d.dimUnit}\nID: ${d.id} ${d.dimUnit}\nOverall: ${d.overallLen} ${d.dimUnit}\nFlange OD: ${d.flangeOD} ${d.dimUnit}\nT: ${d.flangeThk} ${d.dimUnit}` : `Part: Sleeve\nOD: ${d.od} ${d.dimUnit}\nID: ${d.id} ${d.dimUnit}\nL: ${d.len} ${d.dimUnit}`;
+          const body = encodeURIComponent(`Name: \nEmail: \n\n${dimsLines}\nQty: ${qty}\nWeight (${massUnit}): ${round(weightOut, massUnit==='lb'?2:3)}\nUnit price (USD): ${round(unit_after_discount,2)}\nDiscount: ${discountPct}%\nTotal (USD): ${round(total,2)}\nLME: $${window._LME_USD_PER_TONNE}/t`);
+          document.getElementById('mailtoLink').href = 'mailto:dersan@chicago-bronze.com?subject='+subject+'&body='+body;
+        }catch(err){ showError(err.message || String(err)); }
+      });
+
+      document.getElementById('savePdfBtn').addEventListener('click', ()=>{
+        if(!lastQuote){ showError('Please calculate a quote first.'); return; }
+        const q=lastQuote; const massUnit=q.massUnit||document.getElementById('massUnits').value;
+        document.getElementById('printAsOf').textContent = 'As of today • LME $'+fmt(q.lme_usd_per_tonne,0)+'/t';
+        document.getElementById('p_part').textContent = q.partType==='flanged'?'Flanged sleeve':'Sleeve';
+        document.getElementById('p_od').textContent = q.od+' '+q.dimUnit;
+        document.getElementById('p_id').textContent = q.id+' '+q.dimUnit;
+        document.getElementById('p_len').textContent = (q.partType==='flanged' ? q.overallLen : q.len)+' '+q.dimUnit;
+        const showFl=(q.partType==='flanged');
+        document.getElementById('p_flange_od_row').style.display = showFl?'flex':'none';
+        document.getElementById('p_flange_t_row').style.display = showFl?'flex':'none';
+        if(showFl){ document.getElementById('p_fod').textContent = q.flangeOD+' '+q.dimUnit; document.getElementById('p_ft').textContent = q.flangeThk+' '+q.dimUnit; }
+        document.getElementById('p_units').textContent = 'Dims: '+q.dimUnit+' • Weight: '+massUnit;
+        document.getElementById('p_alloy').textContent = (ALLOYS[q.alloyKey]?.label || q.alloyKey.replaceAll('_',' '));
+        document.getElementById('p_weight').textContent = round(q.weight, massUnit==='lb'?2:3)+' '+massUnit;
+        document.getElementById('p_unit').textContent = '$ '+fmt(round(q.unitPrice,2),2);
+        document.getElementById('p_disc').textContent = (q.discountPct||0)+' %';
+        document.getElementById('p_total').textContent = '$ '+fmt(round(q.total,2),2);
+        document.getElementById('p_lme').textContent = '$'+fmt(q.lme_usd_per_tonne,0)+'/t';
+        const proxy=document.createElementNS('http://www.w3.org/2000/svg','svg'); proxy.setAttribute('id','proxy'); proxy.setAttribute('viewBox','0 0 560 220'); proxy.setAttribute('width','560'); proxy.setAttribute('height','220'); document.body.appendChild(proxy); drawSketch(q,'proxy');
+        const printCanvas=document.getElementById('printSketch'); const ctx=printCanvas.getContext('2d'); const xml = new XMLSerializer().serializeToString(proxy); const img = new Image(); const svg64 = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(xml))); img.onload = function(){ ctx.clearRect(0,0,printCanvas.width,printCanvas.height); ctx.drawImage(img,0,0); window.print(); proxy.remove(); }; img.src = svg64;
+      });
+
+      (async ()=>{ await (window.Capacity?.ready || Promise.resolve()); })();
+    });
+
+    function readDims(){
+      const dimUnit=$('#dimUnits').value, massUnit=$('#massUnits').value, alloyKey=$('#alloy').value, partType=$('#partType').value;
+      const od=Number($('#od').value), id=$('#id').value===''?0:Number($('#id').value);
+      const len=Number($('#len').value), overallLen=Number($('#overallLen')?.value||0), flangeThk=Number($('#flangeThk')?.value||0), flangeOD=Number($('#flangeOD')?.value||0);
+      return {dimUnit,massUnit,alloyKey,partType,od,id,len,overallLen,flangeThk,flangeOD};
+    }
+  </script>
+</body>
+</html>
