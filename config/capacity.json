@@ -1,0 +1,64 @@
+{
+  "schema": "cap-1.0",
+  "updated_at": "2025-08-20",
+  "units": "mm",
+  "processes": {
+    "centrifugal": {
+      "minOD": 60,
+      "maxOD": 1500,
+      "minID": 0,
+      "maxLen": 1200,
+      "maxWeightKg": 800,
+      "minWall": 6
+    },
+    "continuous": {
+      "minOD": 20,
+      "maxOD": 420,
+      "minID": 0,
+      "maxLen": 3000,
+      "maxWeightKg": 500,
+      "minWall": 3
+    }
+  },
+  "parts": {
+    "bushing": {
+      "defaultProcess": "centrifugal"
+    },
+    "flanged": {
+      "defaultProcess": "centrifugal",
+      "minFlangeThk": 8,
+      "minFlangeOverhang": 10
+    },
+    "solid": {
+      "defaultProcess": "continuous"
+    }
+  },
+  "alloys": {
+    "C86300_MnBronze": {
+      "process": "centrifugal",
+      "overrides": {
+        "minWall": 8
+      },
+      "notes": "High Mn bronze; avoid walls <8 mm when L>400 mm."
+    },
+    "C95400_AlBronze": {
+      "process": "continuous",
+      "overrides": {
+        "maxOD": 300
+      }
+    },
+    "C93200_SAE660": {
+      "process": "continuous"
+    }
+  },
+  "leadtime": {
+    "green_days": 3,
+    "yellow_days": 7,
+    "red_days": 14
+  },
+  "ui": {
+    "exceptionEmail": "sales@example.com",
+    "exceptionSubject": "Capacity exception request",
+    "exceptionCC": []
+  }
+}
