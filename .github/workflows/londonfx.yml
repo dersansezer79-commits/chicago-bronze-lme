@@ -1,0 +1,25 @@
+name: Update TCMB FX
+
+on:
+  schedule:
+    # Run daily at 05:00 UTC (08:00 Europe/Istanbul)
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lme_automation
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+      - run: npm install
+      - run: npm run update:tcmb
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'chore: auto-update tcmb.json'
+          file_pattern: 'lme_automation/tcmb.json'

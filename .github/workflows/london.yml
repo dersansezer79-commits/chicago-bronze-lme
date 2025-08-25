@@ -1,0 +1,25 @@
+name: Update London Stock Indices
+
+on:
+  schedule:
+    # Run daily at 05:10 UTC (08:10 Europe/Istanbul)
+    - cron: '10 5 * * *'
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lme_automation
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+      - run: npm install
+      - run: npm run update:london
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'chore: auto-update londonstock.json'
+          file_pattern: 'lme_automation/londonstock.json'
