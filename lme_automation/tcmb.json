@@ -1,0 +1,13 @@
+{
+  "USDTRY": 0,
+  "EURTRY": 0,
+  "GBPTRY": 0,
+  "as_of": null,
+  "source": "TCMB today.xml",
+  "field": "ForexSelling",
+  "gold": {
+    "XAUUSD": null,
+    "gram_try": null
+  },
+  "updated_at": null
+}
