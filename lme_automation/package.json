@@ -1,0 +1,235 @@
+bash -c '
+set -euo pipefail
+
+mkdir -p lme_automation/scripts .github/workflows
+
+# update_tcmb_fx.js
+cat > lme_automation/scripts/update_tcmb_fx.js << "EOF"
+import { writeFileSync } from "node:fs";
+import { parseStringPromise } from "xml2js";
+
+const TCMB_URL = "https://www.tcmb.gov.tr/kurlar/today.xml";
+const YF_URL = "https://query1.finance.yahoo.com/v7/finance/quote?symbols=XAUUSD=X";
+
+const toFloatTR = (s) => (s == null ? null : parseFloat(String(s).replace(",", ".")));
+
+async function fetchTCMB() {
+  const r = await fetch(TCMB_URL, { cache: "no-store" });
+  if (!r.ok) throw new Error("TCMB HTTP " + r.status);
+  const xml = await r.text();
+  const js = await parseStringPromise(xml);
+
+  const list = js.Tarih_Date.Currency;
+  const find = (code) => list.find((c) => (c.$.Kod || c.$.Code) === code);
+  const get = (cur, key) => (cur && cur[key] && cur[key][0] ? toFloatTR(cur[key][0]) : null);
+
+  const usd = find("USD");
+  const eur = find("EUR");
+  const gbp = find("GBP");
+
+  return {
+    as_of: js.Tarih_Date.$.Tarih || js.Tarih_Date.$.Date || new Date().toISOString().slice(0, 10),
+    source: "TCMB today.xml",
+    field: "ForexSelling",
+    USDTRY: get(usd, "ForexSelling") || get(usd, "BanknoteSelling") || get(usd, "ForexBuying") || get(usd, "BanknoteBuying"),
+    EURTRY: get(eur, "ForexSelling") || get(eur, "BanknoteSelling") || get(eur, "ForexBuying") || get(eur, "BanknoteBuying"),
+    GBPTRY: get(gbp, "ForexSelling") || get(gbp, "BanknoteSelling") || get(gbp, "ForexBuying") || get(gbp, "BanknoteBuying"),
+  };
+}
+
+async function fetchGoldUSDoz() {
+  const r = await fetch(YF_URL, { cache: "no-store" });
+  if (!r.ok) throw new Error("Yahoo HTTP " + r.status);
+  const js = await r.json();
+  const q = js.quoteResponse.result?.[0];
+  return q?.regularMarketPrice ?? q?.postMarketPrice ?? null;
+}
+
+try {
+  const fx = await fetchTCMB();
+  let xauusd = null, gram_try = null;
+  try {
+    xauusd = await fetchGoldUSDoz();
+    if (xauusd && fx.USDTRY) gram_try = (xauusd * fx.USDTRY) / 31.1035;
+  } catch {}
+
+  const out = {
+    ...fx,
+    gold: { XAUUSD: xauusd, gram_try: gram_try ? Number(gram_try.toFixed(2)) : null },
+    updated_at: new Date().toISOString(),
+  };
+  writeFileSync("tcmb.json", JSON.stringify(out, null, 2));
+  console.log("Wrote tcmb.json");
+} catch (e) {
+  console.error(e);
+  process.exit(1);
+}
+EOF
+
+# update_londonstock.js
+cat > lme_automation/scripts/update_londonstock.js << "EOF"
+import { writeFileSync } from "node:fs";
+
+const symbols = ["^FTSE", "^FTMC"];
+const url =
+  "https://query1.finance.yahoo.com/v7/finance/quote?symbols=" +
+  encodeURIComponent(symbols.join(","));
+
+try {
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(\`Yahoo HTTP \${res.status}\`);
+  const js = await res.json();
+
+  const map = {};
+  for (const q of js.quoteResponse?.result ?? []) {
+    map[q.symbol] = {
+      shortName: q.shortName,
+      price: q.regularMarketPrice ?? q.postMarketPrice ?? null,
+      change: q.regularMarketChange ?? null,
+      changePercent: q.regularMarketChangePercent ?? null
+    };
+  }
+
+  const out = { as_of: new Date().toISOString(), indices: map };
+  writeFileSync("londonstock.json", JSON.stringify(out, null, 2));
+  console.log("Wrote londonstock.json");
+} catch (e) {
+  console.error(e);
+  process.exit(1);
+}
+EOF
+
+# update_lme_alloys.js
+cat > lme_automation/scripts/update_lme_alloys.js << "EOF"
+import { writeFileSync } from "node:fs";
+
+const SRC =
+  process.env.LME_SOURCE_URL ||
+  "https://raw.githubusercontent.com/dersansezer79-commits/chicago-bronze-lme/main/lme.json";
+
+try {
+  const r = await fetch(SRC, { cache: "no-store" });
+  if (!r.ok) throw new Error("LME source HTTP " + r.status);
+  const text = await r.text();
+  let data;
+  try { data = JSON.parse(text); } catch { throw new Error("Invalid JSON at source"); }
+  writeFileSync("lme.json", JSON.stringify(data, null, 2));
+  console.log("Wrote lme.json (mirrored from source).");
+} catch (e) {
+  console.error(e);
+  process.exit(1);
+}
+EOF
+
+# package.json
+cat > lme_automation/package.json << "EOF"
+{
+  "name": "lme-automation",
+  "version": "1.0.0",
+  "description": "Update TCMB FX, LME metals and London stock indices",
+  "type": "module",
+  "scripts": {
+    "update:tcmb": "node scripts/update_tcmb_fx.js",
+    "update:lme": "node scripts/update_lme_alloys.js",
+    "update:london": "node scripts/update_londonstock.js"
+  },
+  "dependencies": {
+    "xml2js": "^0.6.2"
+  }
+}
+EOF
+
+# .github/workflows/fx.yml
+cat > .github/workflows/fx.yml << "EOF"
+name: Update TCMB FX
+
+on:
+  schedule:
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lme_automation
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci || npm i
+      - run: npm run update:tcmb
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: auto-update tcmb.json"
+          file_pattern: "lme_automation/tcmb.json lme_automation/package-lock.json"
+          add_options: "-A"
+EOF
+
+# .github/workflows/lme.yml
+cat > .github/workflows/lme.yml << "EOF"
+name: Update LME Metals (mirror)
+
+on:
+  schedule:
+    - cron: "5 5 * * *"
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lme_automation
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Set LME source URL
+        run: echo "LME_SOURCE_URL=https://raw.githubusercontent.com/dersansezer79-commits/chicago-bronze-lme/main/lme.json" >> $GITHUB_ENV
+      - run: npm ci || npm i
+      - run: npm run update:lme
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: auto-update lme.json (mirror)"
+          file_pattern: "lme_automation/lme.json lme_automation/package-lock.json"
+          add_options: "-A"
+EOF
+
+# .github/workflows/london.yml
+cat > .github/workflows/london.yml << "EOF"
+name: Update London Stock Indices
+
+on:
+  schedule:
+    - cron: "10 5 * * *"
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lme_automation
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci || npm i
+      - run: npm run update:london
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: auto-update londonstock.json"
+          file_pattern: "lme_automation/londonstock.json lme_automation/package-lock.json"
+          add_options: "-A"
+EOF
+
+zip -r lme_automation_bundle.zip lme_automation .github/workflows/fx.yml .github/workflows/lme.yml .github/workflows/london.yml >/dev/null
+
+echo "Bundle created at lme_automation_bundle.zip"
+ls -lh lme_automation_bundle.zip
+'
