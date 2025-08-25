@@ -1,8 +1,0 @@
-{
-  "copper":    { "usd_per_tonne": null, "as_of": null },
-  "aluminium": { "usd_per_tonne": null, "as_of": null },
-  "nickel":    { "usd_per_tonne": null, "as_of": null },
-  "tin":       { "usd_per_tonne": null, "as_of": null },
-  "zinc":      { "usd_per_tonne": null, "as_of": null },
-  "lead":      { "usd_per_tonne": null, "as_of": null }
-}

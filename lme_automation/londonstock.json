@@ -1,7 +1,0 @@
-{
-  "as_of": null,
-  "indices": {
-    "^FTSE": { "shortName": null, "price": null, "change": null, "changePercent": null },
-    "^FTMC": { "shortName": null, "price": null, "change": null, "changePercent": null }
-  }
-}
