@@ -1,0 +1,44 @@
+name: auto-update fx.json
+
+on:
+  schedule:
+    # Run Mon–Fri at 15:40 Türkiye time (UTC+3) => 12:40 UTC
+    - cron: "40 12 * * 1-5"
+  workflow_dispatch:
+
+jobs:
+  update-fx:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y libxml2-utils
+
+      - name: Fetch TCMB and build fx.json
+        env:
+          FIELD: BanknoteSelling   # set to ForexSelling if you prefer Döviz Satış
+        run: |
+          set -e
+          curl -fsSL https://www.tcmb.gov.tr/kurlar/today.xml -o today.xml
+          RATE=$(xmllint --xpath "string(//Currency[@CurrencyCode='USD']/${FIELD})" today.xml | tr ',' '.')
+          DATE=$(xmllint --xpath "string(/Tarih_Date/@Date)" today.xml || true)
+
+          if [ -z "$RATE" ]; then
+            echo "TCMB rate not found"; exit 1
+          fi
+
+          printf '{\n  "USDTRY": %.4f,\n  "source": "TCMB",\n  "field": "%s",\n  "as_of": "%s"\n}\n' "$RATE" "$FIELD" "$DATE" > fx.json
+          cat fx.json
+
+      - name: Commit if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet -- fx.json; then
+            git add fx.json
+            git commit -m "chore: auto-update fx.json (TCMB ${FIELD})"
+            git push
+          else
+            echo "No changes in fx.json"
+          fi
