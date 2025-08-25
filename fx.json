@@ -2,7 +2,5 @@
   "USDTRY": 40.9857,
   "source": "TCMB",
   "field": "BanknoteSelling",
-  "as_of": "2025-08-22",
-  "source_url": "https://www.tcmb.gov.tr/wps/wcm/connect/tr/tcmb+tr/main+page+site+area/bugun",
-  "fetched_at": "2025-08-25T11:53:17.008904+00:00"
+  "as_of": "08/22/2025"
 }
