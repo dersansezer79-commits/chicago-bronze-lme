@@ -1,9 +1,5 @@
-// Update FTSE 100 (^FTSE) and FTSE 250 (^FTMC) -> londonstock.json
+// Robust FTSE fetch -> londonstock.json
 import { writeFileSync } from "node:fs";
-
-const YAHOO_URL = (symbols) =>
-  "https://query1.finance.yahoo.com/v7/finance/quote?symbols=" +
-  encodeURIComponent(symbols.join(","));
 
 const Y_HEADERS = {
   "User-Agent":
@@ -13,7 +9,10 @@ const Y_HEADERS = {
 };
 
 async function fetchYahoo(symbols) {
-  const res = await fetch(YAHOO_URL(symbols), { headers: Y_HEADERS, cache: "no-store" });
+  const url =
+    "https://query1.finance.yahoo.com/v7/finance/quote?symbols=" +
+    encodeURIComponent(symbols.join(","));
+  const res = await fetch(url, { headers: Y_HEADERS, cache: "no-store" });
   if (!res.ok) throw new Error("Yahoo HTTP " + res.status);
   const js = await res.json();
   const out = {};
@@ -29,26 +28,40 @@ async function fetchYahoo(symbols) {
   return out;
 }
 
-// very light fallback: Stooq daily CSV (delayed)
-// ukx = FTSE100, ftmc = FTSE250
+// Stooq fallback – request both in one call, parse safely
 async function fetchStooq() {
-  const map = { "^FTSE": "ukx", "^FTMC": "ftmc" };
+  // ukx = FTSE 100, ftmc = FTSE 250
+  const res = await fetch("https://stooq.com/q/l/?s=ukx,ftmc&i=d", { cache: "no-store" });
+  if (!res.ok) throw new Error("Stooq HTTP " + res.status);
+  const txt = (await res.text()).trim();
+  // CSV header + one line per symbol
+  // symbol,date,time,open,high,low,close,volume
+  const lines = txt.split(/\r?\n/).filter(Boolean);
+  const header = lines[0]?.split(",") ?? [];
+  const idx = Object.fromEntries(header.map((h, i) => [h.toLowerCase(), i]));
+
   const out = {};
-  for (const [sym, stq] of Object.entries(map)) {
-    const url = `https://stooq.com/q/l/?s=${stq}&i=d`;
-    const r = await fetch(url, { cache: "no-store" });
-    if (!r.ok) continue;
-    const txt = await r.text(); // e.g., "symbol,date,time,open,high,low,close,volume\nukx,2025-08-26,15:00,...."
-    const line = txt.split("\n")[1]?.trim();
-    const close = line?.split(",")?.[6];
-    const price = close ? Number(close) : null;
-    out[sym] = {
-      shortName: sym === "^FTSE" ? "FTSE 100" : "FTSE 250",
-      price,
-      change: null,
-      changePercent: null,
-      source: "stooq",
-    };
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(",");
+    const sym = cols[idx.symbol]?.toLowerCase();
+    const close = cols[idx.close] ? Number(cols[idx.close]) : null;
+    if (sym === "ukx") {
+      out["^FTSE"] = {
+        shortName: "FTSE 100",
+        price: isFinite(close) ? close : null,
+        change: null,
+        changePercent: null,
+        source: "stooq",
+      };
+    } else if (sym === "ftmc") {
+      out["^FTMC"] = {
+        shortName: "FTSE 250",
+        price: isFinite(close) ? close : null,
+        change: null,
+        changePercent: null,
+        source: "stooq",
+      };
+    }
   }
   return out;
 }
