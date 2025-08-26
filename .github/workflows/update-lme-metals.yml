@@ -1,0 +1,21 @@
+name: Update LME Metals (multi)
+
+on:
+  schedule:
+    - cron: "10 5 * * *"   # 08:10 Europe/Istanbul daily
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Update 6 LME metals
+        run: node lme_automation/scripts/update_lme_alloys.js
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: auto-update LME metals (multi)"
+          file_pattern: lme_automation/lme.json
