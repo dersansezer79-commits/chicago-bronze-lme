@@ -1,0 +1,70 @@
+name: Update metals.json daily
+
+on:
+  schedule:
+    - cron: "0 5 * * *"   # Her gün 08:00 Türkiye
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build lme.json (inline, no extra files)
+        env:
+          METALS_DEV_API_KEY: ${{ secrets.METALS_DEV_API_KEY }}
+        run: |
+          mkdir -p public/data
+          node - <<'NODE'
+          const fs = require('fs');
+
+          const key = process.env.METALS_DEV_API_KEY;
+          if (!key) { throw new Error('Missing METALS_DEV_API_KEY secret'); }
+
+          const url = `https://api.metals.dev/v1/latest?api_key=${key}&currency=USD&unit=kg`;
+
+          (async () => {
+            const r = await fetch(url, { headers: { Accept: 'application/json' }});
+            const d = await r.json();
+            if (d.status !== 'success') { console.error(d); process.exit(1); }
+
+            const m = d.metals || {};
+            const c = d.currencies || {};
+            const usdtry = c.TRY ? (1 / c.TRY) : null;
+
+            const out = {
+              timestamp: d.timestamp ?? new Date().toISOString(),
+              currency: 'USD',
+              unit: 'kg',
+              source: 'metals.dev/latest',
+              usd_per_kg: {
+                aluminum: m.lme_aluminum ?? m.aluminum ?? null,
+                copper:   m.lme_copper   ?? m.copper   ?? null,
+                lead:     m.lme_lead     ?? m.lead     ?? null,
+                nickel:   m.lme_nickel   ?? m.nickel   ?? null,
+                zinc:     m.lme_zinc     ?? m.zinc     ?? null
+              },
+              usdtry
+            };
+
+            fs.writeFileSync('public/data/lme.json', JSON.stringify(out, null, 2));
+            fs.writeFileSync('lme.json', JSON.stringify(out, null, 2)); // köke de koy (gerekirse)
+            console.log('Wrote public/data/lme.json and lme.json');
+          })().catch(e => { console.error(e); process.exit(1); });
+          NODE
+
+      - name: Commit & push if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/lme.json lme.json || true
+          git diff --cached --quiet && echo "No changes" && exit 0
+          git commit -m "chore: update lme.json"
+          git push
