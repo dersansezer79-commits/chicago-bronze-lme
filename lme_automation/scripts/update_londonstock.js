@@ -28,23 +28,22 @@ async function fetchYahoo(symbols) {
   return out;
 }
 
-// Stooq fallback – request both in one call, parse safely
+// Stooq fallback – request both in one call, parse safely (daily close)
 async function fetchStooq() {
   // ukx = FTSE 100, ftmc = FTSE 250
-  const res = await fetch("https://stooq.com/q/l/?s=ukx,ftmc&i=d", { cache: "no-store" });
-  if (!res.ok) throw new Error("Stooq HTTP " + res.status);
-  const txt = (await res.text()).trim();
-  // CSV header + one line per symbol
-  // symbol,date,time,open,high,low,close,volume
+  const r = await fetch("https://stooq.com/q/l/?s=ukx,ftmc&i=d", { cache: "no-store" });
+  if (!r.ok) throw new Error("Stooq HTTP " + r.status);
+  const txt = (await r.text()).trim();
+  // CSV header + one row per symbol
   const lines = txt.split(/\r?\n/).filter(Boolean);
   const header = lines[0]?.split(",") ?? [];
   const idx = Object.fromEntries(header.map((h, i) => [h.toLowerCase(), i]));
 
   const out = {};
   for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(",");
-    const sym = cols[idx.symbol]?.toLowerCase();
-    const close = cols[idx.close] ? Number(cols[idx.close]) : null;
+    const c = lines[i].split(",");
+    const sym = c[idx.symbol]?.toLowerCase();
+    const close = c[idx.close] ? Number(c[idx.close]) : null;
     if (sym === "ukx") {
       out["^FTSE"] = {
         shortName: "FTSE 100",
