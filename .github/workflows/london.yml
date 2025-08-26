@@ -16,10 +16,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm ci || npm i
-      - run: npm run update:london
+      - run: node scripts/update_londonstock.js
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "chore: auto-update londonstock.json"
-          file_pattern: "lme_automation/londonstock.json lme_automation/package-lock.json"
-          add_options: "-A"
+          file_pattern: "lme_automation/londonstock.json"
