@@ -1,14 +1,4 @@
 {
-  "timestamp": "2025-08-26T09:22:19.979Z",
-  "currency": "USD",
-  "unit": "kg",
-  "source": "metals.dev/latest",
-  "usd_per_kg": {
-    "aluminum": 2.5875,
-    "copper": 9.726,
-    "lead": 1.9865,
-    "nickel": 14.94,
-    "zinc": 2.7825
-  },
-  "usdtry": 41.016371914541374
+  "usd_per_tonne": 9966,
+  "as_of": "2025-08-26T09:29:36.935Z"
 }
