@@ -13,14 +13,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        with: { fetch-depth: 0 }
 
       - uses: actions/setup-node@v4
-        with:
-          node-version: 20
+        with: { node-version: 20 }
 
-      - name: Build lme_automation/lme.json (new automation only)
+      - name: Build lme_automation/lme.json (with PB & WSJ/USA)
         env:
           METALS_DEV_API_KEY: ${{ secrets.METALS_DEV_API_KEY }}
           OUT_PATH: lme_automation/lme.json
@@ -43,32 +41,67 @@ jobs:
             const c = d.currencies || {};
             const usdtry = c.TRY ? (1 / c.TRY) : null;
 
+            const pick = (lmeKey, genericKey) => {
+              if (m[lmeKey] != null) return { value: m[lmeKey], source: lmeKey };
+              if (m[genericKey] != null) return { value: m[genericKey], source: genericKey };
+              return { value: null, source: null };
+            };
+
+            const Al = pick('lme_aluminum', 'aluminum');
+            const Cu = pick('lme_copper',   'copper');
+            const Pb = pick('lme_lead',     'lead');     // <-- PB (Lead)
+            const Ni = pick('lme_nickel',   'nickel');
+            const Zn = pick('lme_zinc',     'zinc');
+
+            // WSJ/USA = COMEX Copper; fall back to generic copper if not present
+            const WSJ = (m.comex_copper != null)
+              ? { value: m.comex_copper, source: 'comex_copper' }
+              : { value: Cu.value,       source: Cu.source || 'copper' };
+
             const out = {
               timestamp: d.timestamp ?? new Date().toISOString(),
               currency: 'USD',
               unit: 'kg',
-              source: 'metals.dev/latest',
-              usd_per_kg: {
-                aluminum: m.lme_aluminum ?? m.aluminum ?? null,
-                copper:   m.lme_copper   ?? m.copper   ?? null,
-                lead:     m.lme_lead     ?? m.lead     ?? null,
-                nickel:   m.lme_nickel   ?? m.nickel   ?? null,
-                zinc:     m.lme_zinc     ?? m.zinc     ?? null
+              basis: 'latest',
+              meta: {
+                usdtry,
+                sources_used: {
+                  aluminum: Al.source, copper: Cu.source, lead: Pb.source,
+                  nickel: Ni.source, zinc: Zn.source, wsj_usa_copper: WSJ.source
+                }
               },
-              usdtry
+              usd_per_kg: {
+                aluminum: Al.value, copper: Cu.value, lead: Pb.value,
+                nickel: Ni.value, zinc: Zn.value
+              },
+              benchmarks: {
+                wsj_usa_copper: WSJ.value     // <-- WSJ / USA copper (COMEX)
+              },
+              aliases: {
+                PB:       { path: 'usd_per_kg.lead',           usd_per_kg: Pb.value, source: Pb.source },
+                WSJ_USA:  { path: 'benchmarks.wsj_usa_copper', usd_per_kg: WSJ.value, source: WSJ.source }
+              }
             };
+
+            // Round to 3 decimals
+            const round = v => (v == null ? v : Math.round(v * 1000) / 1000);
+            for (const k of Object.keys(out.usd_per_kg)) out.usd_per_kg[k] = round(out.usd_per_kg[k]);
+            out.benchmarks.wsj_usa_copper = round(out.benchmarks.wsj_usa_copper);
 
             fs.writeFileSync(path, JSON.stringify(out, null, 2));
             console.log('Wrote', path);
-            console.log('Preview:', { copper_usd_per_kg: out.usd_per_kg.copper, usdtry: out.usdtry });
+            console.log('Preview:', {
+              PB_lead: out.usd_per_kg.lead,
+              WSJ_USA_copper: out.benchmarks.wsj_usa_copper,
+              sources: out.meta.sources_used
+            });
           })().catch(e => { console.error(e); process.exit(1); });
           NODE
 
       - name: Commit & push ONLY lme_automation/lme.json
         run: |
-          set -e
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -f lme_automation/lme.json
-          git commit -m "chore: update lme_automation/lme.json (Metals.Dev)" || { echo "No changes"; exit 0; }
+          git commit -m "chore: update lme_automation/lme.json (Metals.Dev + PB & WSJ/USA)" || { echo "No changes"; exit 0; }
           git push
