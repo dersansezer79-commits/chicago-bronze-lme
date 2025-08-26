@@ -28,7 +28,7 @@ async function fetchYahoo(symbols) {
   return out;
 }
 
-// Stooq fallback – request both in one call, parse safely (daily close)
+// Stooq fallback – request both in one call, parse safely
 async function fetchStooq() {
   // ukx = FTSE 100, ftmc = FTSE 250
   const r = await fetch("https://stooq.com/q/l/?s=ukx,ftmc&i=d", { cache: "no-store" });
@@ -38,7 +38,6 @@ async function fetchStooq() {
   const lines = txt.split(/\r?\n/).filter(Boolean);
   const header = lines[0]?.split(",") ?? [];
   const idx = Object.fromEntries(header.map((h, i) => [h.toLowerCase(), i]));
-
   const out = {};
   for (let i = 1; i < lines.length; i++) {
     const c = lines[i].split(",");
