@@ -1,8 +1,8 @@
-name: Update metals.json daily
+name: Update metals.json (Metals.Dev → lme_automation)
 
 on:
   schedule:
-    - cron: "0 5 * * *"   # Her gün 08:00 Türkiye
+    - cron: "0 5 * * *"   # daily 08:00 Türkiye
   workflow_dispatch:
 
 permissions:
@@ -13,20 +13,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Build lme.json (inline, no extra files)
+      - name: Build lme_automation/lme.json (new automation only)
         env:
           METALS_DEV_API_KEY: ${{ secrets.METALS_DEV_API_KEY }}
+          OUT_PATH: lme_automation/lme.json
         run: |
-          mkdir -p public/data
+          mkdir -p "$(dirname "$OUT_PATH")"
           node - <<'NODE'
           const fs = require('fs');
-
-          const key = process.env.METALS_DEV_API_KEY;
-          if (!key) { throw new Error('Missing METALS_DEV_API_KEY secret'); }
+          const path = process.env.OUT_PATH || 'lme_automation/lme.json';
+          const key  = process.env.METALS_DEV_API_KEY;
+          if (!key) throw new Error('Missing METALS_DEV_API_KEY');
 
           const url = `https://api.metals.dev/v1/latest?api_key=${key}&currency=USD&unit=kg`;
 
@@ -54,17 +58,17 @@ jobs:
               usdtry
             };
 
-            fs.writeFileSync('public/data/lme.json', JSON.stringify(out, null, 2));
-            fs.writeFileSync('lme.json', JSON.stringify(out, null, 2)); // köke de koy (gerekirse)
-            console.log('Wrote public/data/lme.json and lme.json');
+            fs.writeFileSync(path, JSON.stringify(out, null, 2));
+            console.log('Wrote', path);
+            console.log('Preview:', { copper_usd_per_kg: out.usd_per_kg.copper, usdtry: out.usdtry });
           })().catch(e => { console.error(e); process.exit(1); });
           NODE
 
-      - name: Commit & push if changed
+      - name: Commit & push ONLY lme_automation/lme.json
         run: |
+          set -e
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add public/data/lme.json lme.json || true
-          git diff --cached --quiet && echo "No changes" && exit 0
-          git commit -m "chore: update lme.json"
+          git add -f lme_automation/lme.json
+          git commit -m "chore: update lme_automation/lme.json (Metals.Dev)" || { echo "No changes"; exit 0; }
           git push
