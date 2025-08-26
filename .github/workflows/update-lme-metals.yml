@@ -1,21 +1,34 @@
-name: Update LME Metals (multi)
+name: Update metals.json daily
 
 on:
   schedule:
-    - cron: "10 5 * * *"   # 08:10 Europe/Istanbul daily
+    # 05:00 UTC = 08:00 Türkiye (Europe/Istanbul)
+    - cron: "0 5 * * *"
   workflow_dispatch:
 
 jobs:
-  update:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Update 6 LME metals
-        run: node lme_automation/scripts/update_lme_alloys.js
-      - uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "chore: auto-update LME metals (multi)"
-          file_pattern: lme_automation/lme.json
+
+      - name: Install deps (if any)
+        run: npm ci --ignore-scripts || true
+
+      - name: Run updater
+        env:
+          METALS_DEV_API_KEY: ${{ secrets.METALS_DEV_API_KEY }}
+        run: node scripts/update-metals.js
+
+      - name: Commit & push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data/lme.json
+          git diff --cached --quiet && echo "No changes" && exit 0
+          git commit -m "chore: update lme.json"
+          git push
