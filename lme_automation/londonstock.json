@@ -1,19 +1,4 @@
 {
-  "as_of": "2025-08-26T06:26:07.163Z",
-  "indices": {
-    "^FTSE": {
-      "shortName": "FTSE 100",
-      "price": null,
-      "change": null,
-      "changePercent": null,
-      "source": "stooq"
-    },
-    "^FTMC": {
-      "shortName": "FTSE 250",
-      "price": null,
-      "change": null,
-      "changePercent": null,
-      "source": "stooq"
-    }
-  }
+  "as_of": "2025-08-26T06:46:23.350Z",
+  "indices": {}
 }
