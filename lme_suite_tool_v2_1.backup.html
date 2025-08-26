@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Metals → Excel (JSON → XLSX)</title>
+<meta name="robots" content="noindex,nofollow" />
+<!-- SheetJS -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!-- Luxon (time formatting) -->
+<script src="https://cdn.jsdelivr.net/npm/luxon@3.5.0/build/global/luxon.min.js"></script>
+<style>
+  :root {
+    --bg:#0b1020; --panel:#12182b; --ink:#e9eefb; --muted:#9fb0d6; --accent:#6aa3ff; --ok:#20c997; --warn:#ffc107; --bad:#ff6b6b;
+    --mono: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+    --sans: Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  }
+  * { box-sizing: border-box }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans); }
+  header { padding:16px 18px; border-bottom:1px solid #222a43; display:flex; align-items:center; gap:12px; flex-wrap:wrap;}
+  .tag { font-size:12px; padding:3px 8px; border-radius:999px; background:#121a34; border:1px solid #2a3356; color:var(--muted); }
+  main { max-width:1200px; margin:0 auto; padding:18px; }
+  .row { display:grid; grid-template-columns: 1.2fr .8fr; gap:18px; }
+  .card { background:var(--panel); border:1px solid #1e2742; border-radius:14px; padding:16px; }
+  h2 { margin:0 0 12px; font-size:18px; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:right; padding:8px 10px; border-bottom:1px solid #1c2440; font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child { text-align:left; }
+  thead th { position:sticky; top:0; background:linear-gradient(#182241,#12182b); border-bottom:1px solid #2c3a66; }
+  tfoot td { color:var(--muted); }
+  .mono { font-family:var(--mono); font-size:12px; color:#c4d3ff; word-break:break-all; }
+  .controls { display:flex; flex-wrap:wrap; gap:10px; }
+  button { cursor:pointer; padding:10px 14px; border-radius:10px; border:1px solid #2a3356; background:#182241; color:#e9eefb; }
+  button.primary { background:linear-gradient(180deg,#3a6cff,#2458ff); border-color:#2a5fff; }
+  button:disabled { opacity:.6; cursor:not-allowed; }
+  .kv { display:grid; grid-template-columns: 160px 1fr; gap:6px; align-items:center; }
+  .kv div { padding:4px 0; }
+  .ok { color:var(--ok); } .warn { color:var(--warn); } .bad { color:var(--bad); }
+  .small { font-size:12px; color:var(--muted); }
+  @media (max-width: 980px){ .row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <strong>Metals → Excel</strong>
+  <span class="tag">LME + WSJ/USA (COMEX)</span>
+  <span class="tag">USD/kg & USD/lb</span>
+  <span class="tag">Exports .xlsx</span>
+</header>
+
+<main>
+  <div class="row">
+    <section class="card">
+      <h2>Preview</h2>
+      <div class="kv">
+        <div>Timestamp</div><div id="ts" class="mono">—</div>
+        <div>USD/TRY</div><div id="usdtry" class="mono">—</div>
+        <div>WSJ / USA (USD/lb)</div><div id="wsj" class="mono">—</div>
+      </div>
+      <div style="height:12px"></div>
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th>Metal</th>
+            <th>USD/kg</th>
+            <th>USD/lb</th>
+            <th>TL/kg</th>
+            <th>Source</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot><tr><td colspan="5" class="small">All values rounded for display. Excel keeps full precision.</td></tr></tfoot>
+      </table>
+    </section>
+
+    <aside class="card">
+      <h2>Controls</h2>
+      <div class="controls">
+        <button id="btnReload">Reload data</button>
+        <button id="btnExcel" class="primary" disabled>Generate Excel</button>
+      </div>
+      <div style="height:12px"></div>
+      <div class="kv">
+        <div>lme.json</div><div id="statLME" class="small mono">pending…</div>
+        <div>tcmb.json</div><div id="statFX" class="small mono">pending…</div>
+        <div>alloys.json</div><div id="statAlloys" class="small mono">optional</div>
+      </div>
+      <div style="height:12px"></div>
+      <div class="small">
+        Paths can be edited in the code (<span class="mono">PATHS</span>).  
+        This page must be served from the same domain (GitHub Pages → same repo) for fetch to work.
+      </div>
+    </aside>
+  </div>
+
+  <section class="card" style="margin-top:18px">
+    <h2>Raw (for quick debugging)</h2>
+    <details>
+      <summary>Show raw JSON</summary>
+      <pre id="raw" class="mono"></pre>
+    </details>
+  </section>
+</main>
+
+<script>
+(() => {
+  // ---- CONFIG ----
+  const PATHS = {
+    LME:   './lme_automation/lme.json',
+    TCMB:  './lme_automation/tcmb.json',
+    ALLOYS:'./specs/alloys.json'   // optional
+  };
+  const LB_PER_KG = 2.20462262185;
+  const fmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 });
+  const round = (v, n=3) => (v==null ? null : Math.round(v*10**n)/10**n);
+
+  // ---- DOM ----
+  const el = sel => document.querySelector(sel);
+  const $ts = el('#ts'), $usdtry = el('#usdtry'), $wsj = el('#wsj');
+  const $tbody = el('#tbl tbody'), $raw = el('#raw');
+  const $btnExcel = el('#btnExcel'), $btnReload = el('#btnReload');
+  const $statLME = el('#statLME'), $statFX = el('#statFX'), $statAlloys = el('#statAlloys');
+
+  let cache = { lme:null, fx:null, alloys:null, rows:[], wsjLb:null, usdtry:null };
+
+  async function safeFetch(url) {
+    const r = await fetch(url, { cache:'no-store' });
+    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+    return r.json();
+  }
+
+  function pickUSDTRY(lme, fx) {
+    // prefer lme.meta.usdtry, else tcmb.USDTRY, else null
+    let a = lme?.meta?.usdtry ?? null;
+    if (a == null) a = Number(fx?.USDTRY ?? fx?.usdtry ?? null);
+    return a ?? null;
+  }
+
+  function renderPreview() {
+    $tbody.innerHTML = '';
+    cache.rows.forEach(r => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${r.metal}</td>
+        <td>${fmt.format(r.usd_per_kg)}</td>
+        <td>${fmt.format(r.usd_per_lb)}</td>
+        <td>${r.tl_per_kg!=null ? fmt.format(r.tl_per_kg) : '—'}</td>
+        <td class="mono" style="font-size:11px">${r.source||''}</td>
+      `;
+      $tbody.appendChild(tr);
+    });
+    $ts.textContent = cache.lme?.timestamp || '—';
+    $usdtry.textContent = cache.usdtry != null ? fmt.format(cache.usdtry) : '—';
+    $wsj.textContent = cache.wsjLb != null ? fmt.format(cache.wsjLb) : '—';
+    $raw.textContent = JSON.stringify({ lme:cache.lme, fx:cache.fx?.USDTRY ?? cache.fx }, null, 2);
+    $btnExcel.disabled = cache.rows.length === 0;
+  }
+
+  function buildRows(lme, usdtry) {
+    const upk = lme?.usd_per_kg || {};
+    const src = lme?.meta?.sources_used || {};
+    const metals = [
+      ['Aluminum','aluminum'], ['Copper','copper'], ['Lead','lead'],
+      ['Nickel','nickel'], ['Zinc','zinc']
+    ];
+    const rows = [];
+    metals.forEach(([label,key]) => {
+      const v = Number(upk[key] ?? null);
+      if (isFinite(v)) {
+        rows.push({
+          metal: label,
+          usd_per_kg: v,
+          usd_per_lb: v / LB_PER_KG,
+          tl_per_kg: isFinite(usdtry) ? v * usdtry : null,
+          source: src[key] || '—'
+        });
+      }
+    });
+    // WSJ/USA as separate “benchmark” row (USD/lb)
+    const wsjLb = lme?.benchmarks?.wsj_usa_copper_lb ?? null;
+    if (wsjLb != null) {
+      rows.push({
+        metal: 'WSJ/USA Copper (benchmark)',
+        usd_per_kg: (lme?.benchmarks?.wsj_usa_copper_kg ?? (wsjLb*LB_PER_KG)),
+        usd_per_lb: wsjLb,
+        tl_per_kg: isFinite(usdtry) ? (lme?.benchmarks?.wsj_usa_copper_kg ?? (wsjLb*LB_PER_KG)) * usdtry : null,
+        source: lme?.meta?.sources_used?.wsj_usa_copper || 'wsj/comex'
+      });
+    }
+    return rows;
+  }
+
+  async function loadAll() {
+    try {
+      $btnExcel.disabled = true;
+      $statLME.textContent = 'loading…'; $statFX.textContent = 'loading…'; $statAlloys.textContent = 'loading…';
+      const [lme, fx, alloys] = await Promise.allSettled([
+        safeFetch(PATHS.LME),
+        safeFetch(PATHS.TCMB),
+        safeFetch(PATHS.ALLOYS)
+      ]);
+      cache.lme = lme.status==='fulfilled' ? lme.value : ( $statLME.textContent = 'error', null );
+      cache.fx  = fx.status==='fulfilled'  ? fx.value  : ( $statFX.textContent  = 'unavailable (ok)', null );
+      cache.alloys = alloys.status==='fulfilled' ? alloys.value : ( $statAlloys.textContent = 'not found (ok)', null );
+
+      if (cache.lme) { $statLME.textContent = 'ok'; }
+      if (cache.fx)  { $statFX.textContent  = 'ok'; }
+      if (!cache.alloys) { $statAlloys.textContent = 'optional (skipped)'; } else { $statAlloys.textContent = 'ok'; }
+
+      cache.usdtry = pickUSDTRY(cache.lme, cache.fx);
+      cache.rows = buildRows(cache.lme, cache.usdtry);
+      cache.wsjLb = cache.lme?.benchmarks?.wsj_usa_copper_lb ?? null;
+
+      renderPreview();
+    } catch (e) {
+      console.error(e);
+      alert('Failed to load JSON. See console for details.');
+    }
+  }
+
+  function toAOA(rows) {
+    const head = ['Metal','USD/kg','USD/lb','TL/kg','Source'];
+    const body = rows.map(r => [
+      r.metal,
+      round(r.usd_per_kg,3),
+      round(r.usd_per_lb,4),
+      r.tl_per_kg!=null ? round(r.tl_per_kg,2) : null,
+      r.source || ''
+    ]);
+    return [head, ...body];
+  }
+
+  function makeWorkbook() {
+    const now = luxon.DateTime.now().toISO();
+    const wb = XLSX.utils.book_new();
+
+    // Sheet 1: Metals
+    const ws1 = XLSX.utils.aoa_to_sheet(toAOA(cache.rows));
+    XLSX.utils.book_append_sheet(wb, ws1, 'Metals');
+
+    // Sheet 2: Benchmarks
+    const bench = [
+      ['Benchmark','Unit','Value','Source'],
+      ['WSJ / USA Copper','USD/lb', cache.wsjLb!=null? round(cache.wsjLb,4): null, cache.lme?.meta?.sources_used?.wsj_usa_copper || 'wsj/comex']
+    ];
+    const ws2 = XLSX.utils.aoa_to_sheet(bench);
+    XLSX.utils.book_append_sheet(wb, ws2, 'Benchmarks');
+
+    // Sheet 3: FX
+    const fxAoa = [
+      ['Field','Value'],
+      ['USD/TRY', cache.usdtry!=null ? round(cache.usdtry,4) : null],
+      ['Source (preferred)', cache.lme?.meta?.usdtry!=null ? 'lme.meta.usdtry' : 'tcmb.json'],
+      ['Timestamp', now]
+    ];
+    const ws3 = XLSX.utils.aoa_to_sheet(fxAoa);
+    XLSX.utils.book_append_sheet(wb, ws3, 'FX');
+
+    // Sheet 4: Raw (compact)
+    const rawObj = {
+      timestamp_now: now,
+      lme_timestamp: cache.lme?.timestamp ?? null,
+      lme_meta: cache.lme?.meta ?? null
+    };
+    const ws4 = XLSX.utils.json_to_sheet([rawObj], { origin: 'A1' });
+    XLSX.utils.book_append_sheet(wb, ws4, 'Raw');
+
+    return wb;
+  }
+
+  function downloadExcel() {
+    const dt = luxon.DateTime.now().toFormat('yyyy-LL-dd_HH-mm');
+    const wb = makeWorkbook();
+    XLSX.writeFile(wb, `Metals_${dt}.xlsx`, { compression: true });
+  }
+
+  $btnReload.addEventListener('click', loadAll);
+  $btnExcel.addEventListener('click', downloadExcel);
+  loadAll();
+})();
+</script>
+</body>
+</html>
+
