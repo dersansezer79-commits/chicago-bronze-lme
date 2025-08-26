@@ -1,9 +1,8 @@
-name: Update LME Metals
+name: Update LME Metals (mirror)
 
 on:
   schedule:
-    # Run daily at 05:05 UTC (08:05 Europe/Istanbul)
-    - cron: '5 5 * * *'
+    - cron: "5 5 * * *"  # 08:05 Europe/Istanbul
   workflow_dispatch:
 
 jobs:
@@ -13,13 +12,16 @@ jobs:
       run:
         working-directory: lme_automation
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-      - run: npm install
+          node-version: 20
+      - name: Set LME source URL (root lme.json)
+        run: echo "LME_SOURCE_URL=https://raw.githubusercontent.com/dersansezer79-commits/chicago-bronze-lme/main/lme.json" >> $GITHUB_ENV
+      - run: npm ci || npm i
       - run: npm run update:lme
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: 'chore: auto-update lme.json'
-          file_pattern: 'lme_automation/lme.json'
+          commit_message: "chore: auto-update lme.json (mirror)"
+          file_pattern: "lme_automation/lme.json lme_automation/package-lock.json"
+          add_options: "-A"
