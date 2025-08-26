@@ -1,82 +1,59 @@
-// Robust FTSE fetch -> londonstock.json
-import { writeFileSync } from "node:fs";
+// Fetch FTSE 100 (^FTSE) and FTSE 250 (^FTMC) closing prices from Stooq
+// and write londonstock.json without any external dependencies.
 
-const Y_HEADERS = {
-  "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36",
-  Accept: "application/json, text/plain, */*",
-  Referer: "https://finance.yahoo.com/",
-};
+import { writeFileSync } from 'node:fs';
 
-async function fetchYahoo(symbols) {
-  const url =
-    "https://query1.finance.yahoo.com/v7/finance/quote?symbols=" +
-    encodeURIComponent(symbols.join(","));
-  const res = await fetch(url, { headers: Y_HEADERS, cache: "no-store" });
-  if (!res.ok) throw new Error("Yahoo HTTP " + res.status);
-  const js = await res.json();
-  const out = {};
-  for (const q of js.quoteResponse?.result ?? []) {
-    out[q.symbol] = {
-      shortName: q.shortName,
-      price: q.regularMarketPrice ?? q.postMarketPrice ?? null,
-      change: q.regularMarketChange ?? null,
-      changePercent: q.regularMarketChangePercent ?? null,
-      source: "yahoo",
-    };
-  }
-  return out;
-}
+// Download two indices (FTSE 100, FTSE 250) as CSV from Stooq.
+// ukx = FTSE 100, ftmc = FTSE 250, daily frequency (i=d).
+const STOOQ_URL = 'https://stooq.com/q/l/?s=ukx,ftmc&i=d';
 
-// Stooq fallback – request both in one call, parse safely
 async function fetchStooq() {
-  // ukx = FTSE 100, ftmc = FTSE 250
-  const r = await fetch("https://stooq.com/q/l/?s=ukx,ftmc&i=d", { cache: "no-store" });
-  if (!r.ok) throw new Error("Stooq HTTP " + r.status);
-  const txt = (await r.text()).trim();
-  // CSV header + one row per symbol
-  const lines = txt.split(/\r?\n/).filter(Boolean);
-  const header = lines[0]?.split(",") ?? [];
-  const idx = Object.fromEntries(header.map((h, i) => [h.toLowerCase(), i]));
-  const out = {};
-  for (let i = 1; i < lines.length; i++) {
-    const c = lines[i].split(",");
-    const sym = c[idx.symbol]?.toLowerCase();
-    const close = c[idx.close] ? Number(c[idx.close]) : null;
-    if (sym === "ukx") {
-      out["^FTSE"] = {
-        shortName: "FTSE 100",
-        price: isFinite(close) ? close : null,
-        change: null,
-        changePercent: null,
-        source: "stooq",
+  const res = await fetch(STOOQ_URL, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`Stooq HTTP ${res.status}`);
+  const text = (await res.text()).trim();
+  // CSV header + one row per index:
+  // symbol,date,time,open,high,low,close,volume
+  const lines = text.split(/\r?\n/).filter(Boolean);
+  const headers = lines[0].split(',');
+  const indexMap = Object.fromEntries(
+    headers.map((h, i) => [h.toLowerCase(), i])
+  );
+  const result = {};
+  for (const line of lines.slice(1)) {
+    const cols = line.split(',');
+    const symbol = cols[indexMap.symbol].toLowerCase();
+    const close = parseFloat(cols[indexMap.close]);
+    // Map Stooq symbols to Yahoo‑style codes
+    if (symbol === 'ukx') {
+      result['^FTSE'] = {
+        shortName: 'FTSE 100',
+        price: Number.isFinite(close) ? close : null,
+        source: 'stooq'
       };
-    } else if (sym === "ftmc") {
-      out["^FTMC"] = {
-        shortName: "FTSE 250",
-        price: isFinite(close) ? close : null,
-        change: null,
-        changePercent: null,
-        source: "stooq",
+    } else if (symbol === 'ftmc') {
+      result['^FTMC'] = {
+        shortName: 'FTSE 250',
+        price: Number.isFinite(close) ? close : null,
+        source: 'stooq'
       };
     }
   }
-  return out;
+  return result;
 }
 
-try {
-  const symbols = ["^FTSE", "^FTMC"];
-  let data;
+async function main() {
   try {
-    data = await fetchYahoo(symbols);
+    const indices = await fetchStooq();
+    const out = {
+      as_of: new Date().toISOString(),
+      indices
+    };
+    writeFileSync('londonstock.json', JSON.stringify(out, null, 2));
+    console.log('Wrote londonstock.json');
   } catch (e) {
-    console.warn(String(e) + " — falling back to Stooq");
-    data = await fetchStooq();
+    console.error(e);
+    process.exit(1);
   }
-  const out = { as_of: new Date().toISOString(), indices: data };
-  writeFileSync("londonstock.json", JSON.stringify(out, null, 2));
-  console.log("Wrote londonstock.json");
-} catch (e) {
-  console.error(e);
-  process.exit(1);
 }
+
+main();
