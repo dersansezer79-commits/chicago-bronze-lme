@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mühendis Aracı — Manuel Kalay (Tin) Override</title>
+<style>
+  :root{
+    --bg:#0b1220; --panel:#121a2b; --muted:#98a2b3; --text:#e6ecf3; --brand:#5ea0ff; --ok:#22c55e; --warn:#f59e0b;
+    --border:#1f2a44;
+  }
+  html,body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;margin:0}
+  .wrap{max-width:1100px;margin:28px auto;padding:0 16px}
+  h1{font-size:22px;margin:0 0 18px}
+  .grid{display:grid;gap:14px}
+  @media(min-width:900px){.grid{grid-template-columns:1.2fr .8fr}}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .pill{background:#0f1729;border:1px solid var(--border);color:var(--muted);padding:6px 10px;border-radius:999px;font-size:12px}
+  .btn{background:var(--brand);color:#fff;border:none;border-radius:9px;padding:9px 12px;font-weight:600;cursor:pointer}
+  .btn:disabled{opacity:.6;cursor:not-allowed}
+  .btn.outline{background:transparent;border:1px solid var(--brand);color:var(--brand)}
+  input[type="text"], input[type="number"], textarea{
+    background:#0f1729;color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 10px;outline:none;
+  }
+  table{width:100%;border-collapse:collapse;margin-top:10px}
+  th,td{padding:8px;border-bottom:1px solid var(--border);font-size:14px}
+  th{text-align:left;color:var(--muted);font-weight:600}
+  .muted{color:var(--muted)}
+  .ok{color:var(--ok)} .warn{color:var(--warn)}
+  .kbd{font-family:ui-monospace, Menlo, Consolas, monospace;font-size:12px;background:#0f1729;border:1px solid var(--border);border-radius:6px;padding:2px 6px}
+  .small{font-size:12px}
+  .mono{font-family:ui-monospace, Menlo, Consolas, monospace}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Mühendis Aracı — LME + TCMB + <span class="muted">Manuel Kalay (Tin) Override</span></h1>
+
+  <div class="grid">
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <div>
+          <div class="muted small">Kaynak URL’ler (GitHub RAW)</div>
+          <div class="small mono" id="urls"></div>
+        </div>
+        <div class="row">
+          <button class="btn outline" id="reloadBtn">Yenile</button>
+        </div>
+      </div>
+
+      <table id="metalsTbl">
+        <thead>
+          <tr>
+            <th>Metal</th>
+            <th>USD/kg</th>
+            <th>Kaynak</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+
+      <div class="small muted" id="tsLine"></div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <div><strong>Manuel Kalay (Tin) Girişi</strong></div>
+        <span class="pill" id="tinSourcePill">kaynak: —</span>
+      </div>
+
+      <div class="row" style="margin-top:8px">
+        <label class="muted small" for="tinInput">Tin (USD/kg)</label>
+        <input id="tinInput" type="number" step="0.001" placeholder="ör: 30000" style="width:160px">
+        <button class="btn" id="applyTin">Uygula (geçici)</button>
+      </div>
+
+      <div class="small muted" style="margin-top:8px">
+        <div>Kalıcı yapmak için depoya <span class="kbd">manual-overrides.json</span> ekleyin / güncelleyin.</div>
+      </div>
+
+      <div style="margin-top:8px">
+        <textarea id="ovJSON" rows="5" style="width:100%;font-family:ui-monospace" spellcheck="false"></textarea>
+      </div>
+      <div class="row" style="margin-top:8px;justify-content:flex-end">
+        <button class="btn outline" id="copyOv">JSON’u kopyala</button>
+      </div>
+
+      <div class="small muted" style="margin-top:10px" id="statusLine">Hazır</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="muted small">Alloys.json durumu: <span id="alloysStatus">yüklenmedi</span></div>
+    <pre id="alloysHead" class="small mono" style="max-height:160px;overflow:auto;background:#0f1729;border:1px solid var(--border);padding:10px;border-radius:8px;margin-top:8px"></pre>
+  </div>
+</div>
+
+<script>
+/*** CONFIG ***/
+const GITHUB_OWNER  = "dersansezer79-commits";
+const GITHUB_REPO   = "chicago-bronze-lme";
+const GITHUB_BRANCH = "main";
+
+const raw = (path) =>
+  `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/${GITHUB_BRANCH}/${path}?nocache=${Date.now()}`;
+
+const URLS = {
+  lme: raw("lme_automation/lme.json"),
+  tcmb: raw("lme_automation/tcmb.json"),
+  alloys: raw("alloys.json"),                  // ← from repo root (as requested)
+  overrides: raw("manual-overrides.json"),     // ← create this file for shared manual Tin
+};
+
+// UI refs
+const metalsTblBody = document.querySelector("#metalsTbl tbody");
+const tinInput  = document.getElementById("tinInput");
+const tinSourcePill = document.getElementById("tinSourcePill");
+const statusLine = document.getElementById("statusLine");
+const ovJSON = document.getElementById("ovJSON");
+const urlsBox = document.getElementById("urls");
+const tsLine = document.getElementById("tsLine");
+const alloysStatus = document.getElementById("alloysStatus");
+const alloysHead = document.getElementById("alloysHead");
+
+// Show URLs
+urlsBox.textContent = [
+  `lme: ${URLS.lme}`,
+  `tcmb: ${URLS.tcmb}`,
+  `alloys: ${URLS.alloys}`,
+  `overrides: ${URLS.overrides}`,
+].join("\n");
+
+// local state
+let lme = null;
+let overrides = null;
+let alloys = null;
+
+async function fetchJSON(u) {
+  const r = await fetch(u, { cache: "no-store" });
+  if (!r.ok) throw new Error(`Fetch failed ${r.status}`);
+  return r.json();
+}
+
+function fmt(n){
+  if (n==null || !isFinite(n)) return "—";
+  return Number(n).toLocaleString("tr-TR", { maximumFractionDigits: 3 });
+}
+
+function row(name, usdkg, source){
+  const tr = document.createElement("tr");
+  tr.innerHTML = `
+    <td>${name}</td>
+    <td class="mono">${fmt(usdkg)}</td>
+    <td class="small muted">${source || "—"}</td>
+  `;
+  metalsTblBody.appendChild(tr);
+}
+
+function render(){
+  metalsTblBody.innerHTML = "";
+  if (!lme) return;
+
+  const u = lme.usd_per_kg || {};
+  const src = (lme.meta && lme.meta.sources_used) || {};
+
+  row("Alüminyum", u.aluminum, src.aluminum);
+  row("Bakır",      u.copper,   src.copper);
+  row("Kurşun (PB)",u.lead,     src.lead);
+  row("Nikel",      u.nickel,   src.nickel);
+  row("Çinko",      u.zinc,     src.zinc);
+  row("Kalay (Tin)",u.tin,      src.tin);
+
+  const ts = lme.timestamp ? new Date(lme.timestamp) : null;
+  tsLine.textContent = ts ? `Zaman damgası: ${ts.toLocaleString("tr-TR")}` : "";
+  tinSourcePill.textContent = `kaynak: ${src.tin || "—"}`;
+
+  // Fill override JSON helper
+  const ov = {
+    tin_usd_per_kg: Number.isFinite(u.tin) ? Number(u.tin) : undefined,
+    note: "Set manually — edit as needed",
+    updated_at: new Date().toISOString()
+  };
+  ovJSON.value = JSON.stringify(ov, null, 2);
+}
+
+function applyTinLocally(val){
+  if (!lme) return;
+  if (!lme.meta) lme.meta = {};
+  if (!lme.meta.sources_used) lme.meta.sources_used = {};
+  if (!lme.usd_per_kg) lme.usd_per_kg = {};
+
+  if (val == null || !isFinite(val)) return;
+  lme.usd_per_kg.tin = Number(val);
+  lme.meta.sources_used.tin = "manual_override_local";
+  render();
+}
+
+document.getElementById("applyTin").addEventListener("click", () => {
+  const v = Number(tinInput.value);
+  if (!isFinite(v) || v <= 0) {
+    statusLine.textContent = "Geçersiz değer.";
+    return;
+  }
+  statusLine.textContent = "Yerel uygulandı (kalıcı yapmak için JSON’u depoya koyun).";
+  applyTinLocally(v);
+});
+
+document.getElementById("reloadBtn").addEventListener("click", async () => {
+  await boot();
+});
+
+document.getElementById("copyOv").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(ovJSON.value);
+    statusLine.textContent = "JSON panoya kopyalandı. Depoda manual-overrides.json olarak yapıştırın.";
+  } catch {
+    statusLine.textContent = "Kopyalama başarısız — JSON’u seçip elle kopyalayın.";
+  }
+});
+
+async function boot(){
+  statusLine.textContent = "Yükleniyor…";
+  try {
+    const [lmeJ, tcmbJ] = await Promise.all([
+      fetchJSON(URLS.lme),
+      fetchJSON(URLS.tcmb).catch(()=>null) // not needed here, but we keep parity
+    ]);
+    lme = lmeJ;
+
+    // Try repo-level overrides
+    overrides = await fetchJSON(URLS.overrides).catch(()=>null);
+    if (overrides && overrides.tin_usd_per_kg != null) {
+      applyTinLocally(Number(overrides.tin_usd_per_kg));
+      // mark source as shared manual (repo)
+      lme.meta.sources_used.tin = "manual_override_repo";
+    }
+
+    // Alloys from repo root (for the alloy costing tab/logic)
+    try {
+      alloys = await fetchJSON(URLS.alloys);
+      alloysStatus.textContent = "ok";
+      alloysHead.textContent = JSON.stringify(alloys, null, 2).slice(0, 2000);
+    } catch {
+      alloysStatus.textContent = "bulunamadı / hatalı";
+      alloysHead.textContent = "";
+    }
+
+    render();
+    statusLine.textContent = "Hazır";
+  } catch (e) {
+    statusLine.textContent = "Hata: " + (e?.message || e);
+  }
+}
+
+boot();
+</script>
+</body>
+</html>
