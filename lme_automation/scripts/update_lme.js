@@ -1,8 +1,12 @@
 // Node 20+ (global fetch)
 // Writes: lme_automation/lme.json
-// Tin chain: Metals.Dev → override → TradingEconomics → Alumeco → Investing.com → BloombergHT → previous commit.
+// Tin chain: Metals.Dev → override → TradingEconomics → Alumeco → Investing.com → (optional) BloombergHT → previous commit.
 
 import { writeFile, readFile } from "node:fs/promises";
+
+/* ==============================
+   Config
+   ============================== */
 
 const API_KEY  = process.env.METALS_DEV_API_KEY || "";
 const BASE_URL = "https://api.metals.dev/v1/latest";
@@ -11,10 +15,20 @@ const BASE_URL = "https://api.metals.dev/v1/latest";
 const TE_KEY   = process.env.TRADINGECONOMICS_API_KEY || "guest:guest";
 const TE_TIN   = `https://api.tradingeconomics.com/commodities/tin?c=${encodeURIComponent(TE_KEY)}&format=json`;
 
-// Optional repo variables (Settings → Secrets and variables → Variables)
+// Manual override for tin. Accepts USD/kg or USD/tonne (if >200 it's treated as /tonne automatically).
 const TIN_OVERRIDE = process.env.TIN_USD_PER_KG_OVERRIDE || process.env.TIN_OVERRIDE || "";
 
+// Optional: enable the heavyweight Playwright fallback for BloombergHT
+const ENABLE_PLAYWRIGHT_TIN = /^1|true$/i.test(process.env.ENABLE_PLAYWRIGHT_TIN || "");
+
+// Treat any value above this as a tonne quote and convert to /kg.
+const KG_THRESHOLD = Number(process.env.USD_PER_KG_THRESHOLD || 200);
+
 const LB_PER_KG = 2.20462262185;
+
+/* ==============================
+   Helpers
+   ============================== */
 
 const num = (x) => {
   if (x == null) return null;
@@ -23,7 +37,6 @@ const num = (x) => {
 };
 const lower = (s) => (typeof s === "string" ? s.toLowerCase() : s);
 
-// Synonyms to find metals under different keys
 const SYN = {
   aluminum: ["aluminum", "aluminium", "al"],
   copper:   ["copper", "cu"],
@@ -33,14 +46,24 @@ const SYN = {
   tin:      ["tin", "sn"],
 };
 
-function toUSDkg(value, unit) {
-  const v = num(value);
-  if (!Number.isFinite(v)) return null;
+// Normalize any numeric to USD/kg. If unit unknown and value > KG_THRESHOLD → assume /tonne.
+function ensureUSDkg(value, unit) {
+  const v0 = num(value);
+  if (!Number.isFinite(v0)) return null;
   const u = lower(unit || "");
-  if (!u || u.includes("/kg")) return v;
-  if (u.includes("/lb")) return v * LB_PER_KG;
-  if (u.includes("/ton") || u.includes("/tonne") || u.includes("/mt") || u === "/t") return v / 1000;
-  return v; // assume /kg if unknown
+  let v = v0;
+
+  if (u.includes("/kg")) {
+    // OK
+  } else if (u.includes("/lb")) {
+    v = v0 * LB_PER_KG;
+  } else if (u.includes("/ton") || u.includes("/tonne") || u.includes("/mt") || u === "/t") {
+    v = v0 / 1000;
+  } else {
+    // Unknown unit; guess based on magnitude
+    if (v0 > KG_THRESHOLD) v = v0 / 1000;
+  }
+  return v;
 }
 
 function pickPriceAndUnit(obj, fallbackUnit) {
@@ -79,6 +102,10 @@ function pickMetalNode(root, metalKey) {
   return null;
 }
 
+/* ==============================
+   Sources
+   ============================== */
+
 async function fetchMetalsDev() {
   const url = `${BASE_URL}?currency=USD${API_KEY ? `&api_key=${encodeURIComponent(API_KEY)}` : ""}`;
   const headers = API_KEY ? { "X-API-KEY": API_KEY } : {};
@@ -95,7 +122,7 @@ async function fetchMetalsDev() {
   for (const m of metals) {
     const node = pickMetalNode(j, m);
     const { value, unit } = pickPriceAndUnit(node, topUnit);
-    usd_per_kg[m] = toUSDkg(value, unit);
+    usd_per_kg[m] = ensureUSDkg(value, unit);
   }
   return usd_per_kg;
 }
@@ -106,15 +133,18 @@ async function tryReadUSDTRY_EURTRY() {
     const j = JSON.parse(txt);
     const USDTRY = num(j?.USDTRY ?? j?.usdtry);
     const EURTRY = num(j?.EURTRY ?? j?.eurtry);
-    return { USDTRY: Number.isFinite(USDTRY) ? USDTRY : null, EURTRY: Number.isFinite(EURTRY) ? EURTRY : null };
+    return {
+      USDTRY: Number.isFinite(USDTRY) ? USDTRY : null,
+      EURTRY: Number.isFinite(EURTRY) ? EURTRY : null
+    };
   } catch {
     return { USDTRY: null, EURTRY: null };
   }
 }
 
-// ========== Tin fallbacks ==========
+/* ---------- Tin fallbacks ---------- */
 
-// TradingEconomics (often USD/MT)
+// TradingEconomics (returns USD/MT typically)
 async function fetchTradingEconomicsTinUSDkg() {
   try {
     const r = await fetch(TE_TIN, { cache: "no-store", headers: { "User-Agent": "github-actions" }});
@@ -123,26 +153,18 @@ async function fetchTradingEconomicsTinUSDkg() {
     const row = Array.isArray(arr) ? arr[0] : null;
     if (!row) return null;
 
-    const value = num(row?.Price ?? row?.price ?? row?.Close ?? row?.close ?? row?.Last ?? row?.last);
-    if (!Number.isFinite(value)) return null;
-
-    const unit  = row?.Unit ?? row?.unit ?? null;
-    if (!unit) {
-      if (value > 1000) return value / 1000; // assume /tonne
-      if (value < 100)  return value * LB_PER_KG; // assume /lb
-      return value;     // assume /kg
-    }
-    return toUSDkg(value, unit);
+    const v = num(row?.Price ?? row?.price ?? row?.Close ?? row?.close ?? row?.Last ?? row?.last);
+    const unit = row?.Unit ?? row?.unit ?? null;
+    return ensureUSDkg(v, unit);
   } catch {
     return null;
   }
 }
 
-// Alumeco (EUR/t or USD/t). Needs USDTRY & EURTRY to convert EUR→USD if needed.
+// Alumeco (EUR/t or USD/t or /kg). Needs FX for EUR→USD.
 function parseFlexibleNumber(s) {
   if (!s) return null;
   let t = String(s).replace(/\s/g, "");
-  // both '.' and ',' present → last one is decimal
   if (t.includes(".") && t.includes(",")) {
     const last = Math.max(t.lastIndexOf("."), t.lastIndexOf(","));
     t = t
@@ -153,7 +175,7 @@ function parseFlexibleNumber(s) {
     return num(t);
   }
   if (t.includes(",") && !t.includes(".")) t = t.replace(",", ".");
-  else t = t.replace(",", "");
+  else t = t.replace(/,/g, "");
   return num(t);
 }
 
@@ -193,30 +215,22 @@ async function fetchAlumecoTinUSDkg(USDTRY, EURTRY) {
 
     if (!Number.isFinite(value) || !currency) return null;
 
-    let usdkg = null;
-    if (per === "t") {
-      if (currency === "USD") usdkg = value / 1000;
-      else if (currency === "EUR") {
-        if (!Number.isFinite(USDTRY) || !Number.isFinite(EURTRY)) return null;
-        const EURUSD = USDTRY / EURTRY;
-        usdkg = (value * EURUSD) / 1000;
-      }
-    } else { // per kg
-      if (currency === "USD") usdkg = value;
-      else if (currency === "EUR") {
-        if (!Number.isFinite(USDTRY) || !Number.isFinite(EURTRY)) return null;
-        const EURUSD = USDTRY / EURTRY;
-        usdkg = value * EURUSD;
-      }
-    }
+    let quoted = value;
+    if (per === "t") quoted = value / 1000; // to per kg
 
-    return Number.isFinite(usdkg) ? usdkg : null;
+    if (currency === "USD") {
+      return ensureUSDkg(quoted, "/kg");
+    } else { // EUR
+      if (!Number.isFinite(USDTRY) || !Number.isFinite(EURTRY)) return null;
+      const EURUSD = USDTRY / EURTRY;
+      return ensureUSDkg(quoted * EURUSD, "/kg");
+    }
   } catch {
     return null;
   }
 }
 
-// Investing.com (TR) — Tin page (likely USD/MT). Parse visible price.
+// Investing.com (TR/EN). Typically USD/MT visible → convert to /kg.
 async function fetchInvestingTinUSDkg() {
   const urls = [
     "https://tr.investing.com/commodities/tin",
@@ -249,22 +263,22 @@ async function fetchInvestingTinUSDkg() {
         }
       }
       if (Number.isFinite(value)) {
-        return value > 1000 ? value / 1000 : value; // assume USD/MT → /kg
+        return ensureUSDkg(value, value > KG_THRESHOLD ? "/t" : "/kg");
       }
     } catch { /* try next URL */ }
   }
   return null;
 }
 
-// BloombergHT (TR) — Kalay page. Uses Playwright to render page and read price.
+// BloombergHT (TR) — optional; requires Playwright (heavy). Disabled by default.
 async function fetchBloombergHTTinUSDkg() {
+  if (!ENABLE_PLAYWRIGHT_TIN) return null;
   let chromium;
   try {
     ({ chromium } = await import('playwright'));
   } catch {
     return null;
   }
-
   const url = 'https://www.bloomberght.com/emtia/kalay';
   const ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36';
 
@@ -311,10 +325,7 @@ async function fetchBloombergHTTinUSDkg() {
     }
 
     if (!Number.isFinite(val)) return null;
-
-    // Most portals quote USD/MT → convert to /kg
-    const usdkg = val > 1000 ? val / 1000 : val;
-    return Number.isFinite(usdkg) ? usdkg : null;
+    return ensureUSDkg(val, val > KG_THRESHOLD ? "/t" : "/kg");
   } catch {
     return null;
   } finally {
@@ -344,17 +355,20 @@ async function fetchPrevTin() {
   }
 }
 
-// ========== main ==========
+/* ==============================
+   Main
+   ============================== */
 
 (async () => {
-  const usd_per_kg = await fetchMetalsDev();
+  const usd_per_kg = await fetchMetalsDev();                    // normalized to USD/kg
   const { USDTRY, EURTRY } = await tryReadUSDTRY_EURTRY();
 
   let tinSource = "lme_tin";
 
-  // 1) manual override
+  // 1) manual override (accepts /kg or /t — threshold-based)
   if (!Number.isFinite(usd_per_kg.tin)) {
-    const ov = num(TIN_OVERRIDE);
+    const ovRaw = num(TIN_OVERRIDE);
+    const ov = Number.isFinite(ovRaw) ? ensureUSDkg(ovRaw, ovRaw > KG_THRESHOLD ? "/t" : "/kg") : null;
     if (Number.isFinite(ov)) { usd_per_kg.tin = ov; tinSource = "override_tin"; console.log("ℹ️ Tin override:", ov); }
   }
   // 2) TradingEconomics
@@ -367,12 +381,12 @@ async function fetchPrevTin() {
     const al = await fetchAlumecoTinUSDkg(USDTRY, EURTRY);
     if (Number.isFinite(al)) { usd_per_kg.tin = al; tinSource = "alumeco_tin"; console.log("ℹ️ Tin from Alumeco:", al); }
   }
-  // 4) Investing.com (TR)
+  // 4) Investing.com
   if (!Number.isFinite(usd_per_kg.tin)) {
     const inv = await fetchInvestingTinUSDkg();
     if (Number.isFinite(inv)) { usd_per_kg.tin = inv; tinSource = "investing_tin"; console.log("ℹ️ Tin from Investing:", inv); }
   }
-  // 5) BloombergHT (TR)
+  // 5) BloombergHT (optional / disabled by default)
   if (!Number.isFinite(usd_per_kg.tin)) {
     const bh = await fetchBloombergHTTinUSDkg();
     if (Number.isFinite(bh)) { usd_per_kg.tin = bh; tinSource = "bloomberght_tin"; console.log("ℹ️ Tin from BloombergHT:", bh); }
@@ -385,6 +399,12 @@ async function fetchPrevTin() {
   if (!Number.isFinite(usd_per_kg.tin)) {
     usd_per_kg.tin = null;
     console.warn("⚠️ Tin not available from API, override, TE, Alumeco, Investing, BloombergHT, or previous commit.");
+  }
+
+  // Final sanity: if any metal still looks like /t (v > KG_THRESHOLD), downscale.
+  for (const k of Object.keys(usd_per_kg)) {
+    const v = usd_per_kg[k];
+    if (Number.isFinite(v) && v > KG_THRESHOLD) usd_per_kg[k] = v / 1000;
   }
 
   const wsj_lb = Number.isFinite(usd_per_kg.copper) ? usd_per_kg.copper / LB_PER_KG : null;
@@ -413,8 +433,8 @@ async function fetchPrevTin() {
       wsj_usa_copper_kg: Number.isFinite(usd_per_kg.copper) ? usd_per_kg.copper : null,
     },
     aliases: {
-      PB:   { path: "usd_per_kg.lead", unit: "USD/kg", usd: usd_per_kg.lead ?? null, source: "lme_lead" },
-      WSJ_USA: { path: "benchmarks.wsj_usa_copper_lb", unit: "USD/lb", usd: wsj_lb ?? null, source: "lme_copper" },
+      PB:      { path: "usd_per_kg.lead", unit: "USD/kg", usd: usd_per_kg.lead ?? null, source: "lme_lead" },
+      WSJ_USA:{ path: "benchmarks.wsj_usa_copper_lb", unit: "USD/lb", usd: wsj_lb ?? null, source: "lme_copper" },
     },
   };
 
