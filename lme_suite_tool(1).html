@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mühendis – Döküm Maliyet Hesaplayıcı</title>
+<style>
+  :root{
+    --bg:#0e1320;--card:#121a2b;--ink:#e7ecf5;--muted:#9fb0d1;--line:#25314a;--acc:#6aa9ff;--good:#3ecf8e;--bad:#ff6a6a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto}
+  header{padding:16px 20px;border-bottom:1px solid var(--line)}
+  h1{margin:0;font-weight:700;font-size:18px}
+  main{padding:20px;display:grid;gap:16px;grid-template-columns:repeat(12,1fr)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .title{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  h2{margin:0 0 8px 0;font-size:16px}
+  .row{display:grid;gap:12px}
+  .grid-2{grid-template-columns:1fr 1fr}
+  .grid-3{grid-template-columns:repeat(3,1fr)}
+  .grid-4{grid-template-columns:repeat(4,1fr)}
+  label{display:block;margin:6px 0 4px;color:var(--muted)}
+  input,select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#0b1220;color:var(--ink)}
+  small, .muted{color:var(--muted)}
+  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right}
+  th:first-child,td:first-child{text-align:left}
+  .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .kpi .box{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:12px}
+  .kpi .val{font-size:18px;font-weight:700}
+  .pill{padding:2px 8px;border-radius:999px;border:1px solid var(--line);background:#0b1220}
+  .ok{color:var(--good)} .bad{color:var(--bad)}
+  .btn{appearance:none;cursor:pointer;border:1px solid var(--line);background:#0b1220;color:var(--ink);padding:10px 12px;border-radius:10px}
+  .btn:hover{border-color:var(--acc)}
+  @media (max-width:1000px){ main{grid-template-columns:1fr} .kpi{grid-template-columns:1fr 1fr} }
+</style>
+</head>
+<body>
+<header>
+  <h1>Mühendis – Döküm Maliyet Hesaplayıcı</h1>
+  <div class="muted">LME + TCMB otomatik, alaşım kompozisyonu GitHub’daki <code>specs/alloys.json</code>’dan</div>
+</header>
+
+<main>
+  <!-- Quotes -->
+  <section class="card" style="grid-column:1/-1">
+    <div class="title">
+      <h2>Güncel Piyasalar</h2>
+      <button class="btn" id="btnRefresh">Yenile</button>
+    </div>
+    <div class="kpi">
+      <div class="box"><div class="muted">USD/TRY</div><div class="val" id="k_usdtry">–</div><div class="muted" id="k_ts">–</div></div>
+      <div class="box"><div class="muted">Bakır (USD/kg)</div><div class="val" id="k_cu">–</div><div class="muted">WSJ LB: <span id="k_wsj">–</span></div></div>
+      <div class="box"><div class="muted">Kalay (USD/kg)</div><div class="val" id="k_sn">–</div><div class="pill" id="k_sn_src">–</div></div>
+      <div class="box"><div class="muted">Gram Altın (TL/gr)</div><div class="val" id="k_gram">–</div><div class="muted">TCMB</div></div>
+    </div>
+  </section>
+
+  <!-- Alloy & inputs -->
+  <section class="card" style="grid-column:1/7">
+    <h2>Alaşım ve Parça Bilgileri</h2>
+    <div class="row grid-2">
+      <div>
+        <label>Alaşım kodu (UNS / ad)</label>
+        <select id="selAlloy"></select>
+        <small class="muted" id="alloyMeta"></small>
+      </div>
+      <div>
+        <label>Yoğunluk (g/cm³)</label>
+        <input id="inpDensity" type="number" step="0.01" placeholder="ör. 8.8" />
+        <small class="muted">Boş bırakılırsa alloys.json’daki değer kullanılır (varsa)</small>
+      </div>
+    </div>
+    <div class="row grid-4" style="margin-top:6px">
+      <div>
+        <label>Parça ağırlığı (kg)</label>
+        <input id="inpWeight" type="number" step="0.001" value="1.0" />
+      </div>
+      <div>
+        <label>Gating/şarj payı (%)</label>
+        <input id="inpGating" type="number" step="0.1" value="30" />
+      </div>
+      <div>
+        <label>Ergitme kaybı (%)</label>
+        <input id="inpMeltLoss" type="number" step="0.1" value="3" />
+      </div>
+      <div>
+        <label>Verim (%)</label>
+        <input id="inpYield" type="number" step="0.1" value="85" />
+      </div>
+    </div>
+  </section>
+
+  <!-- Costs -->
+  <section class="card" style="grid-column:7/-1">
+    <h2>Operasyon Girdileri</h2>
+    <div class="row grid-3">
+      <div>
+        <label>Elektrik (TL/kWh)</label>
+        <input id="inpElecTL" type="number" step="0.01" value="5.0" />
+      </div>
+      <div>
+        <label>Tüketim (kWh/kg ergitme)</label>
+        <input id="inpKwhPerKg" type="number" step="0.01" value="0.6" />
+      </div>
+      <div>
+        <label>İşçilik (TL/saat)</label>
+        <input id="inpLaborH" type="number" step="0.01" value="250" />
+      </div>
+      <div>
+        <label>Süre (dk/parça)</label>
+        <input id="inpMinutes" type="number" step="0.1" value="5" />
+      </div>
+      <div>
+        <label>Genel gider (%)</label>
+        <input id="inpOverhead" type="number" step="0.1" value="12" />
+      </div>
+      <div>
+        <label>Marj (%)</label>
+        <input id="inpMargin" type="number" step="0.1" value="20" />
+      </div>
+      <div>
+        <label>Hurdacı (TL/kg) – iade kredisi</label>
+        <input id="inpScrapTL" type="number" step="0.01" value="0" />
+      </div>
+      <div>
+        <label>Hurda oranı (% girişten)</label>
+        <input id="inpScrapPct" type="number" step="0.1" value="0" />
+      </div>
+      <div>
+        <label>Diğer/öngörülmeyen (TL/kg)</label>
+        <input id="inpOtherTL" type="number" step="0.01" value="0" />
+      </div>
+    </div>
+    <small class="muted">Marj, tüm maliyetlerin üstüne uygulanır.</small>
+  </section>
+
+  <!-- Breakdown -->
+  <section class="card" style="grid-column:1/-1">
+    <div class="title"><h2>Sonuçlar</h2>
+      <button class="btn" id="btnReset">Sıfırla</button>
+    </div>
+    <div class="kpi" style="margin-bottom:10px">
+      <div class="box"><div class="muted">Materyal (USD/kg)</div><div class="val" id="v_mat_usd">–</div><div class="muted">Alaşıma göre</div></div>
+      <div class="box"><div class="muted">Net Maliyet (TL/kg)</div><div class="val" id="v_cost_tl">–</div><div class="muted">Enerji+İşçilik+Gider dahil</div></div>
+      <div class="box"><div class="muted">Satış (TL/kg)</div><div class="val" id="v_sell_tl">–</div><div class="pill">Marj uygulandı</div></div>
+      <div class="box"><div class="muted">Satış (TL/parça)</div><div class="val" id="v_piece_tl">–</div><div class="muted" id="v_piece_info"></div></div>
+    </div>
+
+    <div class="row grid-2">
+      <div>
+        <h3>Element Katkıları (USD/kg)</h3>
+        <table id="tblElements">
+          <thead><tr><th>Element</th><th>%</th><th>USD/kg</th><th>Katkı</th></tr></thead>
+          <tbody></tbody>
+          <tfoot><tr><th>Toplam</th><th>100</th><th></th><th id="el_total">–</th></tr></tfoot>
+        </table>
+      </div>
+      <div>
+        <h3>Maliyet Ayrımı</h3>
+        <table>
+          <tbody id="tblBreak"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+const RAW_BASE = "https://raw.githubusercontent.com/dersansezer79-commits/chicago-bronze-lme/main";
+const URLS = {
+  lme:  `${RAW_BASE}/lme_automation/lme.json`,
+  fx:   `${RAW_BASE}/lme_automation/tcmb.json`,
+  alloys:`${RAW_BASE}/specs/alloys.json`,
+};
+
+const nf2 = new Intl.NumberFormat('tr-TR',{maximumFractionDigits:2});
+const nf3 = new Intl.NumberFormat('tr-TR',{maximumFractionDigits:3});
+const nf0 = new Intl.NumberFormat('tr-TR',{maximumFractionDigits:0});
+
+const ELEM_MAP = { // alloys.json element -> lme key
+  copper:"copper", tin:"tin", lead:"lead", zinc:"zinc", nickel:"nickel", aluminum:"aluminum"
+};
+
+let quotes = { usdtry:null, gram:null, lme:{}, tinSrc:"" };
+let alloys = [];     // [{code,label, density_kg_m3, elements:{copper:%,...}}]
+let alloyIndex = {}; // code->object
+
+function q(sel){ return document.querySelector(sel); }
+
+async function fetchJSON(u){
+  const r = await fetch(u+"?nocache="+Date.now(), {cache:'no-store'});
+  if(!r.ok) throw new Error("fetch fail "+u);
+  return await r.json();
+}
+
+function loadPersist(){
+  const s = localStorage.getItem("cast_inputs");
+  if(!s) return;
+  try{
+    const o = JSON.parse(s);
+    for(const [id,val] of Object.entries(o)){
+      const el = q('#'+id); if(el) el.value = val;
+    }
+  }catch{}
+}
+function savePersist(){
+  const ids = ["inpDensity","inpWeight","inpGating","inpMeltLoss","inpYield","inpElecTL","inpKwhPerKg",
+               "inpLaborH","inpMinutes","inpOverhead","inpMargin","inpScrapTL","inpScrapPct","inpOtherTL","selAlloy"];
+  const o={}; ids.forEach(id=>{ const el=q('#'+id); if(el) o[id]=el.value; });
+  localStorage.setItem("cast_inputs", JSON.stringify(o));
+}
+
+async function loadAll(){
+  // LME
+  const lme = await fetchJSON(URLS.lme);
+  quotes.lme = lme.usd_per_kg || {};
+  quotes.tinSrc = (lme.meta?.sources_used?.tin)||"";
+  const ts = lme.timestamp?.slice(0,19).replace('T',' ') || "";
+
+  // FX + gram altın
+  const fx = await fetchJSON(URLS.fx);
+  quotes.usdtry = Number(fx.USDTRY)||Number(lme.meta?.usdtry)||null;
+  quotes.gram   = (fx.gold?.gram_try ?? fx.GRAMALTIN ?? null);
+
+  // Alloys
+  const ax = await fetchJSON(URLS.alloys);
+  alloys = (ax.alloys || ax || []);
+  alloyIndex = {};
+  alloys.forEach(a => { if(a.code) alloyIndex[a.code]=a; });
+
+  // UI update
+  q('#k_usdtry').textContent = quotes.usdtry? nf3.format(quotes.usdtry):'–';
+  q('#k_gram').textContent   = quotes.gram? nf2.format(quotes.gram):'–';
+  q('#k_cu').textContent     = quotes.lme.copper? nf3.format(quotes.lme.copper):'–';
+  q('#k_sn').textContent     = quotes.lme.tin? nf3.format(quotes.lme.tin):'–';
+  q('#k_wsj').textContent    = lme.benchmarks?.wsj_usa_copper_lb? nf3.format(lme.benchmarks.wsj_usa_copper_lb):'–';
+  q('#k_sn_src').textContent = quotes.tinSrc || 'lme_tin';
+  q('#k_ts').textContent     = ts || '—';
+
+  // Fill alloy list
+  const sel = q('#selAlloy');
+  sel.innerHTML = alloys.map(a => `<option value="${a.code}">${a.code} — ${a.label||""}</option>`).join('');
+  if(!sel.value && alloys[0]) sel.value=alloys[0].code;
+  q('#alloyMeta').textContent = 'Kaynak: alloys.json • ' + alloys.length + ' alaşım';
+  // density default
+  if(sel.value) setDensityFromAlloy(sel.value);
+
+  calc();
+}
+
+function setDensityFromAlloy(code){
+  const a = alloyIndex[code]; if(!a) return;
+  const dens = (a.density_kg_m3 || a.density || null);
+  if(dens){ q('#inpDensity').placeholder = (dens/1000).toFixed(2); } // to g/cm3
+}
+
+function pctToFactor(v){ return Number(v)/100; }
+function kgFromInputs(){
+  const w   = Number(q('#inpWeight').value||0);
+  const gating = pctToFactor(q('#inpGating').value||0);
+  const loss   = pctToFactor(q('#inpMeltLoss').value||0);
+  const yieldF = pctToFactor(q('#inpYield').value||0);
+  // Required metal to pour:
+  // metal_in = part * (1 + gating) / (yield%) ; then account melt loss
+  const base = w * (1 + gating) / (yieldF>0?yieldF:1);
+  const melt = base / (1 - (loss>0?loss:0));
+  return { partKg:w, meltKg: melt };
+}
+
+function materialUSDkg(alloy){
+  const elems = alloy.elements || alloy.comp || {};
+  const rows = [];
+  let total=0, pctSum=0;
+  for(const [ekey, pct] of Object.entries(elems)){
+    const p = Number(pct);
+    if(!Number.isFinite(p) || p<=0) continue;
+    pctSum += p;
+    const lmeKey = ELEM_MAP[ekey.toLowerCase()];
+    const usdkg  = lmeKey? Number(quotes.lme[lmeKey]||0) : 0;
+    const contrib = usdkg * (p/100);
+    total += contrib;
+    rows.push({ element: ekey, pct: p, usdkg, contrib });
+  }
+  return { rows, total, pctSum };
+}
+
+function calc(){
+  const code = q('#selAlloy').value;
+  const alloy = alloyIndex[code] || {};
+  const densGCm3 = Number(q('#inpDensity').value) || ( (alloy.density_kg_m3? alloy.density_kg_m3/1000 : NaN) );
+  if(densGCm3) q('#inpDensity').placeholder = densGCm3.toFixed(2);
+
+  const { rows, total:matUSDkg } = materialUSDkg(alloy);
+
+  const usdtry = Number(quotes.usdtry)||0;
+  const matTLkg = matUSDkg * usdtry;
+
+  const kwhPerKg = Number(q('#inpKwhPerKg').value||0);
+  const elecTL   = Number(q('#inpElecTL').value||0);
+  const energyTLkg = kwhPerKg * elecTL;
+
+  const laborH = Number(q('#inpLaborH').value||0);
+  const minutes= Number(q('#inpMinutes').value||0);
+  // labor per piece:
+  const laborPiece = laborH/60 * minutes;
+  const { partKg, meltKg } = kgFromInputs();
+  const laborTLkg = (partKg>0? (laborPiece/partKg):0);
+
+  const overheadPct = pctToFactor(q('#inpOverhead').value||0);
+  const otherTL = Number(q('#inpOtherTL').value||0);
+
+  // Scrap credit (negative cost)
+  const scrapTLkg = Number(q('#inpScrapTL').value||0);
+  const scrapPct  = pctToFactor(q('#inpScrapPct').value||0);
+  const scrapCreditTLkg = - scrapTLkg * scrapPct;
+
+  const baseTLkg = matTLkg + energyTLkg + laborTLkg + otherTL + scrapCreditTLkg;
+  const overheadTLkg = baseTLkg * overheadPct;
+  const netTLkg = baseTLkg + overheadTLkg;
+
+  const marginPct = pctToFactor(q('#inpMargin').value||0);
+  const sellTLkg = netTLkg * (1 + marginPct);
+  const sellPiece = sellTLkg * partKg;
+
+  // render
+  q('#v_mat_usd').textContent = nf3.format(matUSDkg);
+  q('#v_cost_tl').textContent = nf2.format(netTLkg);
+  q('#v_sell_tl').textContent = nf2.format(sellTLkg);
+  q('#v_piece_tl').textContent = nf2.format(sellPiece);
+  q('#v_piece_info').textContent = `Parça kg: ${nf3.format(partKg)} • Ergitme kg: ${nf3.format(meltKg)}`;
+
+  // elements table
+  const tb = q('#tblElements tbody'); tb.innerHTML='';
+  rows.forEach(r=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML = `<td>${r.element}</td><td>${nf2.format(r.pct)}</td><td>${r.usdkg?nf3.format(r.usdkg):'—'}</td><td>${nf3.format(r.contrib)}</td>`;
+    tb.appendChild(tr);
+  });
+  q('#el_total').textContent = nf3.format(matUSDkg);
+
+  // breakdown
+  const br = [
+    ["Materyal", matTLkg, "USD/kg × USD/TRY"],
+    ["Enerji", energyTLkg, "kWh/kg × TL/kWh"],
+    ["İşçilik", laborTLkg, "saat ücreti × dk/parça"],
+    ["Diğer", otherTL, "kullanıcı girişi"],
+    ["Hurda kredisi", scrapCreditTLkg, "hurdacı × hurda %"],
+    ["Genel gider", overheadTLkg, "%"],
+    ["Net Maliyet", netTLkg, ""],
+    ["Satış (marjlı)", sellTLkg, "%"]
+  ];
+  const brT = q('#tblBreak'); brT.innerHTML='';
+  br.forEach(([k,v,desc])=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML = `<td>${k}</td><td>${nf2.format(v)}</td><td class="muted">${desc}</td>`;
+    brT.appendChild(tr);
+  });
+
+  savePersist();
+}
+
+document.getElementById('btnRefresh').onclick = loadAll;
+document.getElementById('btnReset').onclick = ()=>{ localStorage.removeItem('cast_inputs'); loadPersist(); calc(); };
+
+['inpDensity','selAlloy','inpWeight','inpGating','inpMeltLoss','inpYield','inpElecTL','inpKwhPerKg',
+'inpLaborH','inpMinutes','inpOverhead','inpMargin','inpScrapTL','inpScrapPct','inpOtherTL'
+].forEach(id => { const el=q('#'+id); el.addEventListener('input', ()=>{ if(id==='selAlloy') setDensityFromAlloy(el.value); calc(); }); });
+
+window.addEventListener('load', async ()=>{
+  loadPersist();
+  try{ await loadAll(); }catch(e){ console.error(e); alert('Veriler yüklenemedi. İnternet/GitHub erişimini kontrol edin.'); }
+});
+</script>
+</body>
+</html>
+
