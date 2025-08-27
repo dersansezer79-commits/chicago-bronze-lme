@@ -1,0 +1,36 @@
+name: Update TCMB FX (with Gram Altın)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 5 * * *' # 08:00 TRT (UTC+3)
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install parser
+        run: npm i fast-xml-parser@4
+
+      - name: Build tcmb.json (TCMB + Metals.Dev)
+        env:
+          METALS_DEV_API_KEY: ${{ secrets.METALS_DEV_API_KEY }}
+        run: node scripts/update-tcmb-gold.js
+
+      - name: Commit & push if changed
+        run: |
+          if ! git diff --quiet -- lme_automation/tcmb.json; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add lme_automation/tcmb.json
+            git commit -m "chore: auto-update tcmb.json (FX + Gram Altın)"
+            git push
+          else
+            echo "No changes."
+          fi
