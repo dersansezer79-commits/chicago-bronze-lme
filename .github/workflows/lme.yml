@@ -17,7 +17,7 @@ jobs:
         with:
           node-version: '20'
 
-      # (optional) sanity check the secret exists
+      # Optional: verify the Metals.Dev secret is configured
       - name: Sanity check API key
         env:
           METALS_DEV_API_KEY: ${{ secrets.METALS_DEV_API_KEY }}
@@ -27,9 +27,17 @@ jobs:
           echo "::add-mask::$METALS_DEV_API_KEY"
           echo "✅ METALS_DEV_API_KEY is set (length: ${#METALS_DEV_API_KEY})"
 
+      # Install Playwright (for BloombergHT fallback) inside lme_automation/
+      - name: Install Playwright (Chromium)
+        run: |
+          npm --prefix lme_automation i -D playwright
+          npx --prefix lme_automation playwright install --with-deps chromium
+
       - name: Update LME
         env:
           METALS_DEV_API_KEY: ${{ secrets.METALS_DEV_API_KEY }}
+          TRADINGECONOMICS_API_KEY: ${{ secrets.TRADINGECONOMICS_API_KEY }} # optional; falls back to guest:guest
+          TIN_USD_PER_KG_OVERRIDE: ${{ vars.TIN_USD_PER_KG_OVERRIDE }}       # optional repo Variable
         run: node lme_automation/scripts/update_lme.js
 
       - name: Commit & push if changed
