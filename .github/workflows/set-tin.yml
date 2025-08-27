@@ -3,10 +3,17 @@ name: Set Tin (Manual)
 on:
   workflow_dispatch:
     inputs:
-      tin:
-        description: "TIN (USD/kg)"
+      price:
+        description: "Tin price"
         required: true
         type: number
+      unit:
+        description: "Unit of the price you entered"
+        required: true
+        type: choice
+        options:
+          - USD/ton
+          - USD/kg
       note:
         description: "Optional note (e.g. source/date)"
         required: false
@@ -19,31 +26,54 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Make sure lme.json exists with a minimal structure.
+      - name: Ensure jq is available
+        run: |
+          if ! command -v jq >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y jq
+          fi
+
       - name: Ensure lme.json exists
         run: |
           mkdir -p lme_automation
           if [ ! -f lme_automation/lme.json ]; then
-            cat > lme_automation/lme.json <<'JSON'
-            {
-              "timestamp": "",
-              "currency": "USD",
-              "unit": "kg",
-              "basis": "latest",
-              "meta": { "sources_used": {}, "manual_override": {} },
-              "usd_per_kg": {}
-            }
-            JSON
+            jq -n '{
+              timestamp: "",
+              currency: "USD",
+              unit: "kg",
+              basis: "latest",
+              meta: { sources_used: {}, manual_override: {} },
+              usd_per_kg: {}
+            }' > lme_automation/lme.json
           fi
 
-      # Update ONLY the Tin value in lme_automation/lme.json
+      # Convert to USD/kg if user typed USD/ton
+      - name: Compute USD/kg
+        id: calc
+        env:
+          PRICE: ${{ inputs.price }}
+          UNIT:  ${{ inputs.unit }}
+        run: |
+          if [ "$UNIT" = "USD/ton" ]; then
+            # 1 ton = 1000 kg
+            USDKG=$(python3 - <<'PY'
+import os
+p=float(os.environ["PRICE"])
+print(f"{p/1000:.6f}")
+PY
+)
+          else
+            USDKG="${PRICE}"
+          fi
+          echo "USDKG=$USDKG" >> "$GITHUB_OUTPUT"
+
       - name: Update Tin in lme.json
         env:
-          TIN: ${{ inputs.tin }}
-          NOTE: ${{ inputs.note }}
+          USDKG: ${{ steps.calc.outputs.USDKG }}
+          NOTE:  ${{ inputs.note }}
         run: |
           ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          jq --argjson tin "$TIN" \
+          jq --arg kg "${USDKG}" \
              --arg note "${NOTE:-Set manually}" \
              --arg ts "$ts" '
              .timestamp = $ts
@@ -51,12 +81,12 @@ jobs:
              | .unit = (.unit // "kg")
              | .basis = (.basis // "latest")
              | .usd_per_kg = (.usd_per_kg // {})
-             | .usd_per_kg.tin = $tin
+             | .usd_per_kg.tin = ($kg | tonumber)
              | .meta = (.meta // {})
              | .meta.sources_used = (.meta.sources_used // {})
              | .meta.sources_used.tin = "manual_workflow"
              | .meta.manual_override = (.meta.manual_override // {})
-             | .meta.manual_override.tin_usd_per_kg = $tin
+             | .meta.manual_override.tin_usd_per_kg = ($kg | tonumber)
              | .meta.manual_override.note = $note
              | .meta.manual_override.updated_at = $ts
           ' lme_automation/lme.json > lme_automation/lme.tmp && mv lme_automation/lme.tmp lme_automation/lme.json
@@ -64,6 +94,6 @@ jobs:
       - name: Commit & push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore: set TIN manually to ${{ inputs.tin }} USD/kg"
+          commit_message: "chore: set TIN manually to ${{ steps.calc.outputs.USDKG }} USD/kg (entered: ${{ inputs.price }} ${{ inputs.unit }})"
           file_pattern: "lme_automation/lme.json"
           push_options: --force
