@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       price:
-        description: "Tin price"
+        description: "Tin price (enter with dot, e.g. 30450.5)"
         required: true
         type: number
       unit:
@@ -22,6 +22,7 @@ on:
 jobs:
   set-tin:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,7 +34,7 @@ jobs:
             sudo apt-get install -y jq
           fi
 
-      - name: Ensure lme.json exists
+      - name: Ensure lme.json exists (minimal shape)
         run: |
           mkdir -p lme_automation
           if [ ! -f lme_automation/lme.json ]; then
@@ -47,53 +48,45 @@ jobs:
             }' > lme_automation/lme.json
           fi
 
-      # Convert to USD/kg if user typed USD/ton
-      - name: Compute USD/kg
-        id: calc
+      - name: Update Tin in lme.json (handles USD/ton → USD/kg)
         env:
           PRICE: ${{ inputs.price }}
           UNIT:  ${{ inputs.unit }}
-        run: |
-          if [ "$UNIT" = "USD/ton" ]; then
-            # 1 ton = 1000 kg
-            USDKG=$(python3 - <<'PY'
-import os
-p=float(os.environ["PRICE"])
-print(f"{p/1000:.6f}")
-PY
-)
-          else
-            USDKG="${PRICE}"
-          fi
-          echo "USDKG=$USDKG" >> "$GITHUB_OUTPUT"
-
-      - name: Update Tin in lme.json
-        env:
-          USDKG: ${{ steps.calc.outputs.USDKG }}
           NOTE:  ${{ inputs.note }}
         run: |
+          set -e
           ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          jq --arg kg "${USDKG}" \
+
+          # Update file using only jq (no here-docs, no python)
+          jq --argjson price "${PRICE}" \
+             --arg unit "${UNIT}" \
              --arg note "${NOTE:-Set manually}" \
              --arg ts "$ts" '
+             def round6(x): (x*1000000|floor)/1000000;
+
              .timestamp = $ts
              | .currency = (.currency // "USD")
-             | .unit = (.unit // "kg")
-             | .basis = (.basis // "latest")
+             | .unit     = (.unit // "kg")
+             | .basis    = (.basis // "latest")
              | .usd_per_kg = (.usd_per_kg // {})
-             | .usd_per_kg.tin = ($kg | tonumber)
+             | (.usd_per_kg.tin) =
+                 round6( if $unit == "USD/ton" then ($price/1000) else $price end )
              | .meta = (.meta // {})
              | .meta.sources_used = (.meta.sources_used // {})
              | .meta.sources_used.tin = "manual_workflow"
              | .meta.manual_override = (.meta.manual_override // {})
-             | .meta.manual_override.tin_usd_per_kg = ($kg | tonumber)
+             | .meta.manual_override.tin_usd_per_kg = .usd_per_kg.tin
              | .meta.manual_override.note = $note
              | .meta.manual_override.updated_at = $ts
           ' lme_automation/lme.json > lme_automation/lme.tmp && mv lme_automation/lme.tmp lme_automation/lme.json
 
+          echo "Computed USD/kg:"
+          jq -r '.usd_per_kg.tin' lme_automation/lme.json
+
       - name: Commit & push
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore: set TIN manually to ${{ steps.calc.outputs.USDKG }} USD/kg (entered: ${{ inputs.price }} ${{ inputs.unit }})"
+          commit_message: "chore: set TIN manually to ${{ inputs.price }} ${{ inputs.unit }}"
           file_pattern: "lme_automation/lme.json"
+          # If your branch is protected against force-push, remove the next line:
           push_options: --force
