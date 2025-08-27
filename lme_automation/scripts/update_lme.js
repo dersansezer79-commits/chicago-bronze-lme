@@ -1,12 +1,12 @@
 // Node 20+ (global fetch)
 // Writes: lme_automation/lme.json
-// Source: Metals.Dev (latest). Includes Tin.
-// Tries to read USD/TRY from lme_automation/tcmb.json for meta.usdtry.
+// Source: Metals.Dev (latest). Robust parser + Tin (Kalay).
 
 import { writeFile, readFile } from "node:fs/promises";
 
-const API_KEY = process.env.METALS_DEV_API_KEY || "";
+const API_KEY  = process.env.METALS_DEV_API_KEY || "";
 const BASE_URL = "https://api.metals.dev/v1/latest";
+
 const LB_PER_KG = 2.20462262185;
 
 const num = (x) => {
@@ -15,20 +15,74 @@ const num = (x) => {
   return Number.isFinite(n) ? n : null;
 };
 
-// Normalize to USD/kg from various response shapes
-function asUSDperKG(j, key) {
-  let v =
-    num(j?.prices?.[key]) ??
-    num(j?.[key]) ??
-    num(j?.metals?.[key]?.price_per_kg) ??
-    num(j?.metals?.[key]?.price);
-  if (!Number.isFinite(v)) {
-    const t =
-      num(j?.prices?.[key + "_per_tonne"]) ??
-      num(j?.metals?.[key]?.price_per_tonne);
-    if (Number.isFinite(t)) v = t / 1000;
+const lower = (s) => (typeof s === "string" ? s.toLowerCase() : s);
+
+// Convert a numeric price with a known unit to USD/kg
+function toUSDkg(value, unit) {
+  const v = num(value);
+  if (!Number.isFinite(v)) return null;
+  const u = lower(unit || "");
+
+  if (!u || u.includes("/kg")) return v;
+  if (u.includes("/lb")) return v * LB_PER_KG;
+  if (u.includes("/ton") || u.includes("/tonne") || u.includes("/t") || u.includes("/mt")) return v / 1000;
+
+  // Unknown unit → assume already per kg (best effort)
+  return v;
+}
+
+// Try to extract "price + unit" from various object shapes
+function pickPriceAndUnit(obj, fallbackUnit) {
+  if (obj == null) return { value: null, unit: null };
+  if (typeof obj === "number") return { value: obj, unit: fallbackUnit || null };
+
+  const pairs = [
+    ["usd_per_kg", "/kg"],
+    ["price_per_kg", "/kg"],
+    ["priceKg", "/kg"],
+    ["usd_per_lb", "/lb"],
+    ["price_per_lb", "/lb"],
+    ["priceLb", "/lb"],
+    ["usd_per_tonne", "/tonne"],
+    ["price_per_tonne", "/tonne"],
+    ["priceTonne", "/tonne"],
+    ["usd", null],
+    ["value", null],
+    ["price", null], // rely on obj.unit if present
+  ];
+
+  for (const [k, implied] of pairs) {
+    const val = num(obj?.[k]);
+    if (Number.isFinite(val)) {
+      const unit = obj?.unit || implied || fallbackUnit || null;
+      return { value: val, unit };
+    }
   }
-  return Number.isFinite(v) ? v : null;
+
+  // Plain number in nested shapes (rare)
+  if (typeof obj?.value === "number") return { value: obj.value, unit: obj.unit || fallbackUnit || null };
+
+  return { value: null, unit: null };
+}
+
+// Try common locations for a metal: prices[key], metals[key], data[key], latest[key], key, plus alt spellings
+function pickMetalNode(root, key) {
+  const k1 = key;
+  const k2 = key === "aluminum" ? "aluminium" : key; // handle UK spelling
+  const K1 = key.toUpperCase();
+
+  const tries = [
+    root?.prices?.[k1],   root?.prices?.[k2],   root?.prices?.[K1],
+    root?.metals?.[k1],   root?.metals?.[k2],   root?.metals?.[K1],
+    root?.data?.[k1],     root?.data?.[k2],     root?.data?.[K1],
+    root?.latest?.[k1],   root?.latest?.[k2],   root?.latest?.[K1],
+    root?.[k1],           root?.[k2],           root?.[K1],
+  ];
+
+  for (const t of tries) {
+    if (t != null) return t;
+  }
+  return null;
 }
 
 async function fetchMetals() {
@@ -38,15 +92,29 @@ async function fetchMetals() {
 
   if (!r.ok) {
     const t = await r.text().catch(() => "");
-    throw new Error(`Metals.Dev ${r.status}: ${t.slice(0, 200)}`);
+    throw new Error(`Metals.Dev ${r.status}: ${t.slice(0, 300)}`);
   }
+
   const j = await r.json();
 
-  const keys = ["aluminum", "copper", "lead", "nickel", "zinc", "tin"];
-  const usd_per_kg = {};
-  for (const k of keys) usd_per_kg[k] = asUSDperKG(j, k);
+  // If top-level provides a unit, remember it as a fallback
+  const topUnit =
+    j?.unit ||
+    j?.units?.default ||
+    j?.units?.price ||
+    j?.units?.usd ||
+    null;
 
-  return { raw: j, usd_per_kg };
+  const metals = ["aluminum", "copper", "lead", "nickel", "zinc", "tin"];
+  const usd_per_kg = {};
+
+  for (const m of metals) {
+    const node = pickMetalNode(j, m);
+    const { value, unit } = pickPriceAndUnit(node, topUnit);
+    usd_per_kg[m] = toUSDkg(value, unit);
+  }
+
+  return usd_per_kg;
 }
 
 async function tryReadUSDTRY() {
@@ -61,7 +129,7 @@ async function tryReadUSDTRY() {
 }
 
 (async () => {
-  const { usd_per_kg } = await fetchMetals();
+  const usd_per_kg = await fetchMetals();
   const usdtry = await tryReadUSDTRY();
 
   const wsj_lb = Number.isFinite(usd_per_kg.copper)
@@ -82,14 +150,14 @@ async function tryReadUSDTRY() {
         lead: "lme_lead",
         nickel: "lme_nickel",
         zinc: "lme_zinc",
-        tin: "lme_tin",          // ← Tin
+        tin: "lme_tin",
         wsj_usa_copper: "lme_copper",
       },
     },
     usd_per_kg,
     benchmarks: {
       wsj_usa_copper_lb: wsj_lb,
-      wsj_usa_copper_kg: usd_per_kg.copper ?? null,
+      wsj_usa_copper_kg: Number.isFinite(usd_per_kg.copper) ? usd_per_kg.copper : null,
     },
     aliases: {
       PB: {
@@ -108,7 +176,7 @@ async function tryReadUSDTRY() {
   };
 
   await writeFile("lme_automation/lme.json", JSON.stringify(out, null, 2) + "\n", "utf8");
-  console.log("Wrote lme_automation/lme.json (with tin).");
+  console.log("✅ Wrote lme_automation/lme.json");
 })().catch((e) => {
   console.error(e);
   process.exit(1);
