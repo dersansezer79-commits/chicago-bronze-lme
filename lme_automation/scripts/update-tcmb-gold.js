@@ -1,12 +1,13 @@
 // Node 20+ (global fetch)
 // Writes: lme_automation/tcmb.json
-// Sources: TCMB today.xml (ForexSelling) + Metals.Dev (XAUUSD)
+// Sources: TCMB today.xml (ForexSelling) + Metals.Dev (XAUUSD) with GoldPrice.org fallback
 
 import { writeFile } from 'node:fs/promises';
 import { XMLParser } from 'fast-xml-parser';
 
-const TCMB_URL = 'https://www.tcmb.gov.tr/kurlar/today.xml';
+const TCMB_URL   = 'https://www.tcmb.gov.tr/kurlar/today.xml';
 const METALS_URL = `https://api.metals.dev/v1/latest?api_key=${process.env.METALS_DEV_API_KEY ?? ''}&currency=USD`;
+const GOLD_FALLBACK = 'https://data-asg.goldprice.org/dbXRates/USD'; // returns { items: [{ xauPrice: <USD/oz> }] }
 const GR_PER_OZ = 31.1034768;
 
 const num = (x) => {
@@ -14,8 +15,7 @@ const num = (x) => {
   const n = Number(String(x).replace(',', '.'));
   return Number.isFinite(n) ? n : null;
 };
-const pick = (o, path, d = null) =>
-  path.split('.').reduce((a, k) => a?.[k], o) ?? d;
+const pick = (o, path, d = null) => path.split('.').reduce((a, k) => a?.[k], o) ?? d;
 
 async function fetchTCMB() {
   const res = await fetch(TCMB_URL, { cache: 'no-store' });
@@ -32,9 +32,9 @@ async function fetchTCMB() {
   };
 
   return {
-    as_of: pick(j, 'Tarih_Date.Tarih') || new Date().toISOString().slice(0, 10),
+    as_of:  pick(j, 'Tarih_Date.Tarih') || new Date().toISOString().slice(0, 10),
     source: 'TCMB today.xml',
-    field: 'ForexSelling',
+    field:  'ForexSelling',
     USDTRY: get('USD'),
     EURTRY: get('EUR'),
     GBPTRY: get('GBP'),
@@ -42,24 +42,40 @@ async function fetchTCMB() {
 }
 
 async function fetchXAUUSD() {
+  // 1) try Metals.Dev
   try {
-    const r = await fetch(METALS_URL, { cache: 'no-store' });
-    if (!r.ok) throw new Error(`metals.dev ${r.status}`);
-    const j = await r.json();
-    // accept multiple shapes
-    return (
-      num(j?.metals?.gold?.price) ||
-      num(j?.prices?.XAUUSD) ||
-      num(j?.XAUUSD) ||
-      num(j?.gold) ||
-      num(j?.XAU) ||
-      num(j?.xauusd) ||
-      null
-    );
+    const r = await fetch(METALS_URL, { cache:'no-store' });
+    if (r.ok) {
+      const j = await r.json();
+      const val =
+        num(j?.metals?.gold?.price) ||
+        num(j?.prices?.XAUUSD)     ||
+        num(j?.XAUUSD)             ||
+        num(j?.gold)               ||
+        num(j?.XAU)                ||
+        num(j?.xauusd);
+      if (val != null) return val;
+    }
   } catch (e) {
-    console.warn('XAUUSD fetch failed:', e.message);
-    return null;
+    console.warn('Metals.Dev XAUUSD failed:', e.message);
   }
+
+  // 2) fallback GoldPrice.org (USD per ounce)
+  try {
+    const r = await fetch(GOLD_FALLBACK, {
+      cache: 'no-store',
+      headers: { 'User-Agent': 'Mozilla/5.0 (GitHubActions Bot)' }
+    });
+    if (r.ok) {
+      const j = await r.json();
+      const oz = num(j?.items?.[0]?.xauPrice);
+      if (oz != null) return oz; // still USD/oz; caller will convert to TL/gram
+    }
+  } catch (e) {
+    console.warn('GoldPrice fallback failed:', e.message);
+  }
+
+  return null;
 }
 
 (async () => {
