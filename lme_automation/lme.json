@@ -1,10 +1,10 @@
 {
-  "timestamp": "2025-08-26T10:03:08.008Z",
+  "timestamp": "2025-08-27T06:05:38.638Z",
   "currency": "USD",
   "unit": "kg",
   "basis": "latest",
   "meta": {
-    "usdtry": 41.01523804686355,
+    "usdtry": 41.04445041331085,
     "units": {
       "usd_per_kg": "USD/kg",
       "wsj_usa_copper_lb": "USD/lb"
@@ -19,27 +19,27 @@
     }
   },
   "usd_per_kg": {
-    "aluminum": 2.588,
-    "copper": 9.726,
-    "lead": 1.987,
-    "nickel": 14.94,
-    "zinc": 2.783
+    "aluminum": 2.609,
+    "copper": 9.797,
+    "lead": 1.995,
+    "nickel": 15.145,
+    "zinc": 2.795
   },
   "benchmarks": {
-    "wsj_usa_copper_lb": 4.4116,
-    "wsj_usa_copper_kg": 9.726
+    "wsj_usa_copper_lb": 4.4438,
+    "wsj_usa_copper_kg": 9.797
   },
   "aliases": {
     "PB": {
       "path": "usd_per_kg.lead",
       "unit": "USD/kg",
-      "usd": 1.987,
+      "usd": 1.995,
       "source": "lme_lead"
     },
     "WSJ_USA": {
       "path": "benchmarks.wsj_usa_copper_lb",
       "unit": "USD/lb",
-      "usd": 4.4116,
+      "usd": 4.4438,
       "source": "lme_copper"
     }
   }
