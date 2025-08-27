@@ -1,6 +1,6 @@
 // Node 20+ (global fetch)
 // Writes: lme_automation/lme.json
-// Tin chain: Metals.Dev → override → TradingEconomics → Alumeco → Investing.com → previous commit.
+// Tin chain: Metals.Dev → override → TradingEconomics → Alumeco → Investing.com → BloombergHT → previous commit.
 
 import { writeFile, readFile } from "node:fs/promises";
 
@@ -23,6 +23,7 @@ const num = (x) => {
 };
 const lower = (s) => (typeof s === "string" ? s.toLowerCase() : s);
 
+// Synonyms to find metals under different keys
 const SYN = {
   aluminum: ["aluminum", "aluminium", "al"],
   copper:   ["copper", "cu"],
@@ -215,7 +216,7 @@ async function fetchAlumecoTinUSDkg(USDTRY, EURTRY) {
   }
 }
 
-// Investing.com (TR) — Tin page (likely USD/MT). We parse "instrument-price-last" or "last_last".
+// Investing.com (TR) — Tin page (likely USD/MT). Parse visible price.
 async function fetchInvestingTinUSDkg() {
   const urls = [
     "https://tr.investing.com/commodities/tin",
@@ -234,14 +235,12 @@ async function fetchInvestingTinUSDkg() {
       if (!r.ok) continue;
       const html = await r.text();
 
-      // the live price is often in a span with data-test="instrument-price-last"
       let m = html.match(/data-test="instrument-price-last"[^>]*>([\s\S]*?)<\/span>/i);
       let value = null;
       if (m) {
         const inner = m[1].replace(/<[^>]*>/g, "").trim();
         value = parseFlexibleNumber(inner);
       }
-      // older fallback id
       if (!Number.isFinite(value)) {
         const m2 = html.match(/id="last_last"[^>]*>([\s\S]*?)<\/span>/i);
         if (m2) {
@@ -249,17 +248,78 @@ async function fetchInvestingTinUSDkg() {
           value = parseFlexibleNumber(inner);
         }
       }
-
       if (Number.isFinite(value)) {
-        // Investing Tin is typically quoted in USD per metric ton → convert to USD/kg.
-        // Heuristic if unit not visible:
-        return value > 1000 ? value / 1000 : value; // if < 100, it might be /lb but that’s unlikely for tin here.
+        return value > 1000 ? value / 1000 : value; // assume USD/MT → /kg
       }
-    } catch {
-      // try next url
-    }
+    } catch { /* try next URL */ }
   }
   return null;
+}
+
+// BloombergHT (TR) — Kalay page. Uses Playwright to render page and read price.
+async function fetchBloombergHTTinUSDkg() {
+  let chromium;
+  try {
+    ({ chromium } = await import('playwright'));
+  } catch {
+    return null;
+  }
+
+  const url = 'https://www.bloomberght.com/emtia/kalay';
+  const ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125 Safari/537.36';
+
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const ctx = await browser.newContext({ userAgent: ua, locale: 'tr-TR', viewport: { width: 1280, height: 800 } });
+    const page = await ctx.newPage();
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    await page.waitForTimeout(2000);
+
+    const selectors = [
+      '.last-price', '.price', '.instrument-price', '[data-type="last"]',
+      '[data-field="last"]', '[data-test="instrument-price-last"]',
+      '#last_last', '.piyasaData .value', 'span.value',
+    ];
+
+    const parseNum = (s) => {
+      if (!s) return null;
+      let t = String(s).replace(/\s/g, '');
+      if (t.includes('.') && t.includes(',')) {
+        const last = Math.max(t.lastIndexOf('.'), t.lastIndexOf(','));
+        t = t.split('').map((ch,i)=> i===last?'.':ch).filter((ch,i)=> i===last || (ch!=='.' && ch!==',')).join('');
+      } else if (t.includes(',') && !t.includes('.')) t = t.replace(',', '.');
+      else t = t.replace(/,/g,'');
+      const n = Number(t);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    let val = null;
+    for (const sel of selectors) {
+      const el = await page.$(sel);
+      if (!el) continue;
+      const raw = (await el.innerText())?.trim();
+      const v = parseNum(raw);
+      if (Number.isFinite(v)) { val = v; break; }
+    }
+
+    if (!Number.isFinite(val)) {
+      const bodyText = await page.evaluate(() => document.body.innerText);
+      const cand = [...bodyText.matchAll(/(\d{1,3}(?:\.\d{3})+,\d+|\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:[.,]\d+)?)/g)]
+        .map(m => parseNum(m[1]))
+        .filter(n => Number.isFinite(n));
+      val = cand.find(n => n >= 7_000 && n <= 80_000) ?? cand[0] ?? null;
+    }
+
+    if (!Number.isFinite(val)) return null;
+
+    // Most portals quote USD/MT → convert to /kg
+    const usdkg = val > 1000 ? val / 1000 : val;
+    return Number.isFinite(usdkg) ? usdkg : null;
+  } catch {
+    return null;
+  } finally {
+    await browser.close().catch(() => {});
+  }
 }
 
 async function fetchPrevTin() {
@@ -312,14 +372,19 @@ async function fetchPrevTin() {
     const inv = await fetchInvestingTinUSDkg();
     if (Number.isFinite(inv)) { usd_per_kg.tin = inv; tinSource = "investing_tin"; console.log("ℹ️ Tin from Investing:", inv); }
   }
-  // 5) previous commit
+  // 5) BloombergHT (TR)
+  if (!Number.isFinite(usd_per_kg.tin)) {
+    const bh = await fetchBloombergHTTinUSDkg();
+    if (Number.isFinite(bh)) { usd_per_kg.tin = bh; tinSource = "bloomberght_tin"; console.log("ℹ️ Tin from BloombergHT:", bh); }
+  }
+  // 6) previous commit
   if (!Number.isFinite(usd_per_kg.tin)) {
     const prev = await fetchPrevTin();
     if (Number.isFinite(prev)) { usd_per_kg.tin = prev; tinSource = "previous_commit_tin"; console.log("ℹ️ Tin from previous commit:", prev); }
   }
   if (!Number.isFinite(usd_per_kg.tin)) {
     usd_per_kg.tin = null;
-    console.warn("⚠️ Tin not available from API, override, TE, Alumeco, Investing, or previous commit.");
+    console.warn("⚠️ Tin not available from API, override, TE, Alumeco, Investing, BloombergHT, or previous commit.");
   }
 
   const wsj_lb = Number.isFinite(usd_per_kg.copper) ? usd_per_kg.copper / LB_PER_KG : null;
@@ -338,7 +403,7 @@ async function fetchPrevTin() {
         lead:     "lme_lead",
         nickel:   "lme_nickel",
         zinc:     "lme_zinc",
-        tin:      tinSource,   // which one actually supplied tin
+        tin:      tinSource,   // which source actually supplied tin
         wsj_usa_copper: "lme_copper",
       },
     },
