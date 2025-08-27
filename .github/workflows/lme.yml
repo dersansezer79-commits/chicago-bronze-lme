@@ -8,23 +8,32 @@ on:
 jobs:
   update:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: .
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # If your upstream is a different repo/file, set it here:
-      # env:
-      #   UPSTREAM_LME_JSON: "https://raw.githubusercontent.com/<user>/<repo>/main/path/to/lme.json"
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # (optional) sanity check the secret exists
+      - name: Sanity check API key
+        env:
+          METALS_DEV_API_KEY: ${{ secrets.METALS_DEV_API_KEY }}
+        run: |
+          if [ -z "$METALS_DEV_API_KEY" ]; then
+            echo "❌ Missing METALS_DEV_API_KEY (Settings → Secrets and variables → Actions)"; exit 1; fi
+          echo "::add-mask::$METALS_DEV_API_KEY"
+          echo "✅ METALS_DEV_API_KEY is set (length: ${#METALS_DEV_API_KEY})"
 
       - name: Update LME
+        env:
+          METALS_DEV_API_KEY: ${{ secrets.METALS_DEV_API_KEY }}
         run: node lme_automation/scripts/update_lme.js
 
-      - uses: stefanzweifel/git-auto-commit-action@v5
+      - name: Commit & push if changed
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "chore: auto-update lme.json"
           file_pattern: "lme_automation/lme.json"
