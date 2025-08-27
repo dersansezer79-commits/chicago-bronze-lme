@@ -1,13 +1,12 @@
 // Node 20+ (global fetch)
 // Writes: lme_automation/lme.json
-// Source: Metals.Dev (latest). Adds Tin (Kalay).
+// Source: Metals.Dev (latest). Includes Tin.
 // Tries to read USD/TRY from lme_automation/tcmb.json for meta.usdtry.
 
 import { writeFile, readFile } from "node:fs/promises";
 
-const METALS_URL =
-  `https://api.metals.dev/v1/latest?api_key=${process.env.METALS_DEV_API_KEY ?? ""}&currency=USD`;
-
+const API_KEY = process.env.METALS_DEV_API_KEY || "";
+const BASE_URL = "https://api.metals.dev/v1/latest";
 const LB_PER_KG = 2.20462262185;
 
 const num = (x) => {
@@ -16,16 +15,13 @@ const num = (x) => {
   return Number.isFinite(n) ? n : null;
 };
 
-// Try multiple shapes and normalize to USD/kg
-function extractUSDperKG(j, key) {
-  // 1) prices.aluminum etc (already USD/kg in your previous runs)
+// Normalize to USD/kg from various response shapes
+function asUSDperKG(j, key) {
   let v =
     num(j?.prices?.[key]) ??
     num(j?.[key]) ??
     num(j?.metals?.[key]?.price_per_kg) ??
     num(j?.metals?.[key]?.price);
-
-  // if we only find a per-tonne field, convert to kg
   if (!Number.isFinite(v)) {
     const t =
       num(j?.prices?.[key + "_per_tonne"]) ??
@@ -36,14 +32,19 @@ function extractUSDperKG(j, key) {
 }
 
 async function fetchMetals() {
-  const r = await fetch(METALS_URL, { cache: "no-store" });
-  if (!r.ok) throw new Error(`Metals.Dev ${r.status}`);
+  const url = `${BASE_URL}?currency=USD${API_KEY ? `&api_key=${encodeURIComponent(API_KEY)}` : ""}`;
+  const headers = API_KEY ? { "X-API-KEY": API_KEY } : {};
+  const r = await fetch(url, { cache: "no-store", headers });
+
+  if (!r.ok) {
+    const t = await r.text().catch(() => "");
+    throw new Error(`Metals.Dev ${r.status}: ${t.slice(0, 200)}`);
+  }
   const j = await r.json();
 
-  // normalize keys
   const keys = ["aluminum", "copper", "lead", "nickel", "zinc", "tin"];
   const usd_per_kg = {};
-  for (const k of keys) usd_per_kg[k] = extractUSDperKG(j, k);
+  for (const k of keys) usd_per_kg[k] = asUSDperKG(j, k);
 
   return { raw: j, usd_per_kg };
 }
@@ -63,7 +64,6 @@ async function tryReadUSDTRY() {
   const { usd_per_kg } = await fetchMetals();
   const usdtry = await tryReadUSDTRY();
 
-  // Benchmarks: WSJ/USA copper — keep in sync with copper (USD/lb)
   const wsj_lb = Number.isFinite(usd_per_kg.copper)
     ? usd_per_kg.copper / LB_PER_KG
     : null;
@@ -75,17 +75,14 @@ async function tryReadUSDTRY() {
     basis: "latest",
     meta: {
       usdtry: usdtry,
-      units: {
-        usd_per_kg: "USD/kg",
-        wsj_usa_copper_lb: "USD/lb",
-      },
+      units: { usd_per_kg: "USD/kg", wsj_usa_copper_lb: "USD/lb" },
       sources_used: {
         aluminum: "lme_aluminum",
         copper: "lme_copper",
         lead: "lme_lead",
         nickel: "lme_nickel",
         zinc: "lme_zinc",
-        tin: "lme_tin", // ← NEW
+        tin: "lme_tin",          // ← Tin
         wsj_usa_copper: "lme_copper",
       },
     },
@@ -110,11 +107,7 @@ async function tryReadUSDTRY() {
     },
   };
 
-  await writeFile(
-    "lme_automation/lme.json",
-    JSON.stringify(out, null, 2) + "\n",
-    "utf8"
-  );
+  await writeFile("lme_automation/lme.json", JSON.stringify(out, null, 2) + "\n", "utf8");
   console.log("Wrote lme_automation/lme.json (with tin).");
 })().catch((e) => {
   console.error(e);
