@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-08-27T09:17:55.850Z",
+  "timestamp": "2025-08-27T10:06:34Z",
   "currency": "USD",
   "unit": "kg",
   "basis": "latest",
@@ -15,8 +15,13 @@
       "lead": "lme_lead",
       "nickel": "lme_nickel",
       "zinc": "lme_zinc",
-      "tin": "override_tin",
+      "tin": "manual_workflow",
       "wsj_usa_copper": "lme_copper"
+    },
+    "manual_override": {
+      "tin_usd_per_kg": 34.198,
+      "note": "Set manually",
+      "updated_at": "2025-08-27T10:06:34Z"
     }
   },
   "usd_per_kg": {
@@ -25,7 +30,7 @@
     "lead": 1988.2,
     "nickel": 15150,
     "zinc": 2791,
-    "tin": 0
+    "tin": 34.198
   },
   "benchmarks": {
     "wsj_usa_copper_lb": 4493.163683355316,
