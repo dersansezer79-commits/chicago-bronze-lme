@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-08-27T13:17:24Z",
+  "timestamp": "2025-08-27T13:20:27Z",
   "currency": "USD",
   "unit": "kg",
   "basis": "latest",
@@ -21,7 +21,7 @@
     "manual_override": {
       "tin_usd_per_kg": 34.198,
       "note": "Set manually",
-      "updated_at": "2025-08-27T13:17:24Z"
+      "updated_at": "2025-08-27T13:20:27Z"
     }
   },
   "usd_per_kg": {
