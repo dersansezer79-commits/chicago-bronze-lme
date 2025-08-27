@@ -3,25 +3,27 @@ name: Update TCMB FX (with Gram Altın)
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 5 * * *' # 08:00 TRT (UTC+3)
+    - cron: '0 5 * * *'   # 08:00 Türkiye (UTC+3)
 
 jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Install parser
+      - name: Install dependency
         run: npm i fast-xml-parser@4
 
       - name: Build tcmb.json (TCMB + Metals.Dev)
         env:
           METALS_DEV_API_KEY: ${{ secrets.METALS_DEV_API_KEY }}
-        run: node scripts/update-tcmb-gold.js
+        run: node lme_automation/scripts/update-tcmb-gold.js
 
       - name: Commit & push if changed
         run: |
