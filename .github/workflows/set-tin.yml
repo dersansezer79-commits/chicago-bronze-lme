@@ -1,0 +1,69 @@
+name: Set Tin (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tin:
+        description: "TIN (USD/kg)"
+        required: true
+        type: number
+      note:
+        description: "Optional note (e.g. source/date)"
+        required: false
+        type: string
+
+jobs:
+  set-tin:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Make sure lme.json exists with a minimal structure.
+      - name: Ensure lme.json exists
+        run: |
+          mkdir -p lme_automation
+          if [ ! -f lme_automation/lme.json ]; then
+            cat > lme_automation/lme.json <<'JSON'
+            {
+              "timestamp": "",
+              "currency": "USD",
+              "unit": "kg",
+              "basis": "latest",
+              "meta": { "sources_used": {}, "manual_override": {} },
+              "usd_per_kg": {}
+            }
+            JSON
+          fi
+
+      # Update ONLY the Tin value in lme_automation/lme.json
+      - name: Update Tin in lme.json
+        env:
+          TIN: ${{ inputs.tin }}
+          NOTE: ${{ inputs.note }}
+        run: |
+          ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          jq --argjson tin "$TIN" \
+             --arg note "${NOTE:-Set manually}" \
+             --arg ts "$ts" '
+             .timestamp = $ts
+             | .currency = (.currency // "USD")
+             | .unit = (.unit // "kg")
+             | .basis = (.basis // "latest")
+             | .usd_per_kg = (.usd_per_kg // {})
+             | .usd_per_kg.tin = $tin
+             | .meta = (.meta // {})
+             | .meta.sources_used = (.meta.sources_used // {})
+             | .meta.sources_used.tin = "manual_workflow"
+             | .meta.manual_override = (.meta.manual_override // {})
+             | .meta.manual_override.tin_usd_per_kg = $tin
+             | .meta.manual_override.note = $note
+             | .meta.manual_override.updated_at = $ts
+          ' lme_automation/lme.json > lme_automation/lme.tmp && mv lme_automation/lme.tmp lme_automation/lme.json
+
+      - name: Commit & push
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: set TIN manually to ${{ inputs.tin }} USD/kg"
+          file_pattern: "lme_automation/lme.json"
+          push_options: --force
