@@ -1,14 +1,18 @@
 // Node 20+ (global fetch)
 // Writes: lme_automation/lme.json
-// Source: Metals.Dev (latest). Robust Tin handling: API → override → previous commit.
+// Tin sourcing chain: Metals.Dev → override → TradingEconomics → previous commit.
 
 import { writeFile, readFile } from "node:fs/promises";
 
 const API_KEY  = process.env.METALS_DEV_API_KEY || "";
 const BASE_URL = "https://api.metals.dev/v1/latest";
+
+const TE_KEY   = process.env.TRADINGECONOMICS_API_KEY || "guest:guest"; // fallback
+const TE_TIN   = `https://api.tradingeconomics.com/commodities/tin?c=${encodeURIComponent(TE_KEY)}&format=json`;
+
 const LB_PER_KG = 2.20462262185;
 
-// Optional manual override via repo Variables (Settings → Secrets and variables → Variables)
+// Optional repo variables (Settings → Secrets and variables → Variables)
 const TIN_OVERRIDE = process.env.TIN_USD_PER_KG_OVERRIDE || process.env.TIN_OVERRIDE || "";
 
 const num = (x) => {
@@ -24,7 +28,7 @@ const SYN = {
   lead:     ["lead", "pb"],
   nickel:   ["nickel", "ni"],
   zinc:     ["zinc", "zn"],
-  tin:      ["tin", "sn"],   // ← try both Tin & Sn
+  tin:      ["tin", "sn"], // ← Tin synonyms
 };
 
 function toUSDkg(value, unit) {
@@ -78,7 +82,7 @@ function pickMetalNode(root, metalKey) {
   return null;
 }
 
-async function fetchMetals() {
+async function fetchMetalsDev() {
   const url = `${BASE_URL}?currency=USD${API_KEY ? `&api_key=${encodeURIComponent(API_KEY)}` : ""}`;
   const headers = API_KEY ? { "X-API-KEY": API_KEY } : {};
   const r = await fetch(url, { cache: "no-store", headers });
@@ -101,6 +105,33 @@ async function fetchMetals() {
   return usd_per_kg;
 }
 
+async function fetchTradingEconomicsTinUSDkg() {
+  try {
+    const r = await fetch(TE_TIN, { cache: "no-store", headers: { "User-Agent": "github-actions" }});
+    if (!r.ok) return null;
+    const arr = await r.json();
+
+    // TE typically returns an array with fields like Price, Unit (often USD/MT)
+    const row = Array.isArray(arr) ? arr[0] : null;
+    if (!row) return null;
+
+    const value = num(row?.Price ?? row?.price ?? row?.Close ?? row?.close ?? row?.Last ?? row?.last);
+    if (!Number.isFinite(value)) return null;
+
+    const unit  = row?.Unit ?? row?.unit ?? null;
+    // Heuristics if unit is missing:
+    // Tin is ~25k USD/MT, so >1000 → assume per tonne; <100 → possibly /lb; otherwise treat as /kg.
+    if (!unit) {
+      if (value > 1000) return value / 1000;
+      if (value < 100)  return value * LB_PER_KG;
+      return value;
+    }
+    return toUSDkg(value, unit);
+  } catch {
+    return null;
+  }
+}
+
 async function tryReadUSDTRY() {
   try {
     const txt = await readFile("lme_automation/tcmb.json", "utf8");
@@ -112,10 +143,9 @@ async function tryReadUSDTRY() {
   }
 }
 
-// Fallback #2: pull previous lme.json from GitHub and reuse tin if present
 async function fetchPrevTin() {
   try {
-    const repo = process.env.GITHUB_REPOSITORY; // e.g. "owner/name"
+    const repo = process.env.GITHUB_REPOSITORY; // "owner/name"
     if (!repo) return null;
 
     const api = `https://api.github.com/repos/${repo}/commits?path=lme_automation/lme.json&per_page=2`;
@@ -137,24 +167,38 @@ async function fetchPrevTin() {
 }
 
 (async () => {
-  const usd_per_kg = await fetchMetals();
+  const usd_per_kg = await fetchMetalsDev();
   const usdtry = await tryReadUSDTRY();
 
-  // Tin fallbacks: override → previous commit
+  let tinSource = "lme_tin";
+  // Fallbacks for Tin
   if (!Number.isFinite(usd_per_kg.tin)) {
     const ov = num(TIN_OVERRIDE);
     if (Number.isFinite(ov)) {
       usd_per_kg.tin = ov;
+      tinSource = "override_tin";
       console.log("ℹ️ Using TIN_USD_PER_KG_OVERRIDE:", ov);
-    } else {
-      const prevTin = await fetchPrevTin();
-      if (Number.isFinite(prevTin)) {
-        usd_per_kg.tin = prevTin;
-        console.log("ℹ️ Using previous commit Tin:", prevTin);
-      } else {
-        console.warn("⚠️ Tin not available from API, override, or previous commit. Leaving null.");
-      }
     }
+  }
+  if (!Number.isFinite(usd_per_kg.tin)) {
+    const te = await fetchTradingEconomicsTinUSDkg();
+    if (Number.isFinite(te)) {
+      usd_per_kg.tin = te;
+      tinSource = "tradingeconomics_tin";
+      console.log("ℹ️ Using TradingEconomics Tin:", te);
+    }
+  }
+  if (!Number.isFinite(usd_per_kg.tin)) {
+    const prev = await fetchPrevTin();
+    if (Number.isFinite(prev)) {
+      usd_per_kg.tin = prev;
+      tinSource = "previous_commit_tin";
+      console.log("ℹ️ Using previous commit Tin:", prev);
+    }
+  }
+  if (!Number.isFinite(usd_per_kg.tin)) {
+    usd_per_kg.tin = null; // leave missing
+    console.warn("⚠️ Tin not available from API, override, TE, or previous commit.");
   }
 
   const wsj_lb = Number.isFinite(usd_per_kg.copper)
@@ -175,7 +219,7 @@ async function fetchPrevTin() {
         lead:     "lme_lead",
         nickel:   "lme_nickel",
         zinc:     "lme_zinc",
-        tin:      "lme_tin",
+        tin:      tinSource, // ← record what we actually used
         wsj_usa_copper: "lme_copper",
       },
     },
