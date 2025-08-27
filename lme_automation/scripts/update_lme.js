@@ -14,24 +14,28 @@ const num = (x) => {
   const n = Number(String(x).replace(",", "."));
   return Number.isFinite(n) ? n : null;
 };
-
 const lower = (s) => (typeof s === "string" ? s.toLowerCase() : s);
 
-// Convert a numeric price with a known unit to USD/kg
+// known synonyms to increase hit-rate in provider payloads
+const SYN = {
+  aluminum: ["aluminum", "aluminium", "al"],
+  copper:   ["copper", "cu"],
+  lead:     ["lead", "pb"],
+  nickel:   ["nickel", "ni"],
+  zinc:     ["zinc", "zn"],
+  tin:      ["tin", "sn"],           // ← IMPORTANT
+};
+
 function toUSDkg(value, unit) {
   const v = num(value);
   if (!Number.isFinite(v)) return null;
   const u = lower(unit || "");
-
   if (!u || u.includes("/kg")) return v;
   if (u.includes("/lb")) return v * LB_PER_KG;
-  if (u.includes("/ton") || u.includes("/tonne") || u.includes("/t") || u.includes("/mt")) return v / 1000;
-
-  // Unknown unit → assume already per kg (best effort)
-  return v;
+  if (u.includes("/ton") || u.includes("/tonne") || u.includes("/mt") || u === "/t") return v / 1000;
+  return v; // unknown unit → assume /kg
 }
 
-// Try to extract "price + unit" from various object shapes
 function pickPriceAndUnit(obj, fallbackUnit) {
   if (obj == null) return { value: null, unit: null };
   if (typeof obj === "number") return { value: obj, unit: fallbackUnit || null };
@@ -58,29 +62,24 @@ function pickPriceAndUnit(obj, fallbackUnit) {
       return { value: val, unit };
     }
   }
-
-  // Plain number in nested shapes (rare)
-  if (typeof obj?.value === "number") return { value: obj.value, unit: obj.unit || fallbackUnit || null };
-
+  if (typeof obj?.value === "number")
+    return { value: obj.value, unit: obj.unit || fallbackUnit || null };
   return { value: null, unit: null };
 }
 
-// Try common locations for a metal: prices[key], metals[key], data[key], latest[key], key, plus alt spellings
-function pickMetalNode(root, key) {
-  const k1 = key;
-  const k2 = key === "aluminum" ? "aluminium" : key; // handle UK spelling
-  const K1 = key.toUpperCase();
+// try common containers (prices, metals, data, latest) for ALL synonyms
+function pickMetalNode(root, metalKey) {
+  const names = SYN[metalKey] || [metalKey];
+  const buckets = ["prices", "metals", "data", "latest", null];
 
-  const tries = [
-    root?.prices?.[k1],   root?.prices?.[k2],   root?.prices?.[K1],
-    root?.metals?.[k1],   root?.metals?.[k2],   root?.metals?.[K1],
-    root?.data?.[k1],     root?.data?.[k2],     root?.data?.[K1],
-    root?.latest?.[k1],   root?.latest?.[k2],   root?.latest?.[K1],
-    root?.[k1],           root?.[k2],           root?.[K1],
-  ];
-
-  for (const t of tries) {
-    if (t != null) return t;
+  for (const b of buckets) {
+    for (const n of names) {
+      const keyVar = [n, n.toUpperCase(), n[0].toUpperCase() + n.slice(1)];
+      for (const k of keyVar) {
+        const node = b ? root?.[b]?.[k] : root?.[k];
+        if (node != null) return node;
+      }
+    }
   }
   return null;
 }
@@ -96,24 +95,15 @@ async function fetchMetals() {
   }
 
   const j = await r.json();
-
-  // If top-level provides a unit, remember it as a fallback
-  const topUnit =
-    j?.unit ||
-    j?.units?.default ||
-    j?.units?.price ||
-    j?.units?.usd ||
-    null;
+  const topUnit = j?.unit || j?.units?.default || j?.units?.price || j?.units?.usd || null;
 
   const metals = ["aluminum", "copper", "lead", "nickel", "zinc", "tin"];
   const usd_per_kg = {};
-
   for (const m of metals) {
     const node = pickMetalNode(j, m);
     const { value, unit } = pickPriceAndUnit(node, topUnit);
     usd_per_kg[m] = toUSDkg(value, unit);
   }
-
   return usd_per_kg;
 }
 
@@ -142,15 +132,15 @@ async function tryReadUSDTRY() {
     unit: "kg",
     basis: "latest",
     meta: {
-      usdtry: usdtry,
+      usdtry,
       units: { usd_per_kg: "USD/kg", wsj_usa_copper_lb: "USD/lb" },
       sources_used: {
         aluminum: "lme_aluminum",
-        copper: "lme_copper",
-        lead: "lme_lead",
-        nickel: "lme_nickel",
-        zinc: "lme_zinc",
-        tin: "lme_tin",
+        copper:   "lme_copper",
+        lead:     "lme_lead",
+        nickel:   "lme_nickel",
+        zinc:     "lme_zinc",
+        tin:      "lme_tin",     // ← Tin listed
         wsj_usa_copper: "lme_copper",
       },
     },
