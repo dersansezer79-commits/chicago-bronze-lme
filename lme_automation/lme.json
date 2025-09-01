@@ -1,10 +1,10 @@
 {
-  "timestamp": "2025-08-31T05:33:17.118Z",
+  "timestamp": "2025-09-01T05:39:22.784Z",
   "currency": "USD",
   "unit": "kg",
   "basis": "latest",
   "meta": {
-    "usdtry": 41.13091575215812,
+    "usdtry": 41.14418793868499,
     "units": {
       "usd_per_kg": "USD/kg",
       "wsj_usa_copper_lb": "USD/lb"
