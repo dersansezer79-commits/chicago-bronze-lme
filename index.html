@@ -83,9 +83,203 @@
     .kv{display:flex; justify-content:space-between; margin:4px 0; font-size:12px}
     #printSketch{width:100%; height:220px; border:1px solid #ccc; border-radius:6px}
   }
+
+/* Hide top branding for public */
+header{display:none!important}
+
 </style>
 
 <link rel="stylesheet" href="css/theme-copper.css">
+
+<!-- Capacity Config Loader (v1) -->
+<script>
+const DEFAULT_CAP = {
+  schema:"cap-1.0", units:"mm",
+  processes:{
+    centrifugal:{minOD:60,maxOD:1500,minID:0,maxLen:1200,maxWeightKg:800,minWall:6},
+    continuous:{minOD:20,maxOD:420,minID:0,maxLen:3000,maxWeightKg:500,minWall:3}
+  },
+  parts:{
+    bushing:{defaultProcess:"centrifugal"},
+    flanged:{defaultProcess:"centrifugal",minFlangeThk:8,minFlangeOverhang:10},
+    solid:{defaultProcess:"continuous"}
+  },
+  alloys:{},
+  leadtime:{green_days:3,yellow_days:7,red_days:14},
+  ui:{exceptionEmail:"sales@example.com",exceptionSubject:"Capacity exception request",exceptionCC:[]}
+};
+const CAP_URL = new URLSearchParams(location.search).get("cap") || "https://dersansezer79-commits.github.io/chicago-bronze-lme/config/capacity.json";
+async function loadCapConfig(){
+  const local = localStorage.getItem("cb_cap_config");
+  if(local){ try { window.CAP = JSON.parse(local); return window.CAP; } catch(e){} }
+  if(CAP_URL){
+    try{ const r = await fetch(CAP_URL, {cache:"no-store"});
+      if(r.ok){ const j = await r.json(); if(j.schema && j.schema.startsWith("cap-")){ window.CAP = j; return j; } }
+    }catch(e){}
+  }
+  window.CAP = DEFAULT_CAP; return window.CAP;
+}
+function mm(val, unit){ return unit==='mm' ? val : val*25.4; }
+function deepMerge(base, overrides){
+  const out = structuredClone(base);
+  if(!overrides) return out;
+  for(const k of Object.keys(overrides)){
+    if(overrides[k] && typeof overrides[k]==='object' && !Array.isArray(overrides[k])){
+      out[k] = deepMerge(out[k]||{}, overrides[k]);
+    } else { out[k] = overrides[k]; }
+  }
+  return out;
+}
+function deriveRules(d){
+  const cap = window.CAP || DEFAULT_CAP;
+  const part = cap.parts[d.partType] || cap.parts.bushing;
+  const baseProcKey = (cap.alloys?.[d.alloyKey]?.process) || part?.defaultProcess || "centrifugal";
+  const base = cap.processes[baseProcKey] || cap.processes.centrifugal;
+  const overrides = cap.alloys?.[d.alloyKey]?.overrides || {};
+  return { procKey: baseProcKey, rules: deepMerge(base, overrides), part: part };
+}
+function validateCapacityJSON(d){
+  const { rules, part } = deriveRules(d);
+  const OD = mm(d.od, d.dimUnit);
+  const ID = mm(d.id||0, d.dimUnit);
+  const L  = mm(d.partType==='flanged' ? d.overallLen : d.len, d.dimUnit);
+  if(OD < rules.minOD) return `OD must be ≥ ${rules.minOD} mm.`;
+  if(OD > rules.maxOD) return `OD must be ≤ ${rules.maxOD} mm.`;
+  if(ID < (rules.minID ?? 0)) return `ID must be ≥ ${rules.minID} mm.`;
+  if(L  > rules.maxLen) return `Length must be ≤ ${rules.maxLen} mm.`;
+  const wall = (OD - ID)/2;
+  if(wall < rules.minWall) return `Wall too thin: need ≥ ${rules.minWall} mm (current ${wall.toFixed(1)} mm).`;
+  if(d.partType==='flanged'){
+    const T   = mm(d.flangeThk, d.dimUnit);
+    const FOD = mm(d.flangeOD, d.dimUnit);
+    if(part.minFlangeThk && T < part.minFlangeThk) return `Flange thickness must be ≥ ${part.minFlangeThk} mm.`;
+    if(part.minFlangeOverhang && (FOD - OD) < part.minFlangeOverhang) 
+      return `Flange OD should be ≥ OD + ${part.minFlangeOverhang} mm.`;
+  }
+  try {
+    const { weightKg } = compute({ partType:d.partType, od:d.od, id:d.id, len:d.len, overallLen:d.overallLen, flangeOD:d.flangeOD, flangeThk:d.flangeThk, alloyKey:d.alloyKey, qty:1, dimUnit:d.dimUnit, lme_usd_per_tonne:window._LME_USD_PER_TONNE });
+    const cap = window.CAP || DEFAULT_CAP;
+    const procKey = deriveRules(d).procKey;
+    const maxW = cap.processes?.[procKey]?.maxWeightKg;
+    if(maxW && weightKg > maxW){ return `Single-piece weight limit is ${maxW} kg (current ~${weightKg.toFixed(1)} kg).`; }
+  } catch(e){}
+  return null;
+}
+window.Capacity = {
+  ready: loadCapConfig(),
+  validate: validateCapacityJSON,
+  config: () => (window.CAP || DEFAULT_CAP),
+  setConfig(obj){ window.CAP = obj; localStorage.setItem('cb_cap_config', JSON.stringify(obj)); },
+  useLocal(json){ localStorage.setItem('cb_cap_config', json); location.reload(); },
+  clearLocal(){ localStorage.removeItem('cb_cap_config'); location.reload(); }
+};
+</script>
+
+
+<style id="cb-blue-accent">
+:root{
+  --brand:#2563eb; --accent:#38bdf8;
+}
+/* Primary button accent */
+button#calc, button#savePdfBtn, #savePdfBtn, .primary-btn{
+  background: linear-gradient(180deg, var(--brand), var(--accent)) !important;
+  color:#001428 !important; font-weight:800 !important; border:none !important;
+  box-shadow:0 6px 16px rgba(37,99,235,.35) !important;
+}
+/* Sketch labels: blue + outlined for readability */
+svg#sketch text, svg#printProxy text{
+  fill:#3b82f6 !important;
+  font-weight:700 !important;
+  font-size:13px !important;
+  paint-order:stroke !important;
+  stroke:rgba(2,8,23,.92) !important;
+  stroke-width:2 !important;
+  stroke-linejoin:round !important;
+  text-anchor:middle !important;
+  font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif !important;
+}
+/* Dimension arrows to blue (lines and tips) */
+#sketch line, #sketch path.arrow, #sketch polygon.arrow {
+  stroke:#38bdf8 !important;
+}
+/* Card top border accent (subtle) */
+.card, .panel, .quote, .inputs {
+  border-top:3px solid rgba(56,189,248,.35);
+}
+</style>
+
+
+<style id="cream-blue-override">
+/* Creamy + subtle blue override theme */
+:root{
+  --bg: #f8f6f2;           /* creamy background */
+  --card: #ffffff;          /* white panels */
+  --txt: #0f172a;           /* slate-900 text */
+  --muted: #64748b;         /* slate-500 */
+  --brand: #2563eb;         /* blue-600 */
+  --accent: #7cc4ff;        /* soft blue */
+  --radius: 18px;
+  --heroImage:
+    radial-gradient(1200px 600px at 70% -10%, rgba(37,99,235,.06), transparent 60%),
+    radial-gradient(900px 500px at -10% 90%, rgba(186,173,159,.35), transparent 60%),
+    radial-gradient(800px 500px at 120% 50%, rgba(37,99,235,.06), transparent 60%);
+}
+
+/* Page + panels */
+body{ color:var(--txt)!important; background:var(--bg)!important; background-image:var(--heroImage)!important; }
+.card, .panel, .quote, .inputs{
+  background: var(--card)!important;
+  border:1px solid #e5e7eb!important;
+  border-radius: var(--radius)!important;
+  box-shadow: 0 10px 24px rgba(17,24,39,.08)!important;
+}
+
+/* Headings / brand */
+.brandTitle{ 
+  background: linear-gradient(135deg, #1e3a8a, #2563eb)!important; 
+  -webkit-background-clip:text!important; background-clip:text!important; 
+  -webkit-text-fill-color:transparent!important; color:transparent!important;
+}
+.tagline{ color:#1e40af!important; }
+.trust{ color:#1e3a8a!important; background:linear-gradient(180deg, rgba(37,99,235,.06), rgba(37,99,235,.03))!important; border:1px solid rgba(37,99,235,.18)!important; }
+
+/* Inputs */
+input, select, textarea{
+  background:#fff!important; color:var(--txt)!important;
+  border:1px solid #e5e7eb!important; border-radius:12px!important;
+}
+input::placeholder{ color:#9ca3af!important; }
+input:focus, select:focus, textarea:focus{
+  outline:2px solid rgba(37,99,235,.25)!important; border-color:rgba(37,99,235,.35)!important;
+}
+
+/* Buttons */
+button, .primary-btn{
+  background: linear-gradient(180deg, var(--brand), var(--accent))!important;
+  color:#001428!important; font-weight:800!important; border:none!important;
+  box-shadow: 0 6px 16px rgba(37,99,235,.22)!important;
+}
+button:disabled{ opacity:.6!important; cursor:not-allowed!important; }
+
+/* Metrics and preview boxes */
+.metric{ background:#fafaf9!important; border-color:#e5e7eb!important; }
+.sketchWrap, .previewWrap{ background:#fafaf9!important; border-color:#e5e7eb!important; }
+.muted{ color:var(--muted)!important; }
+
+/* LME banners */
+.lmeBanner{ color:#065f46!important; background:rgba(16,185,129,.10)!important; border-color:rgba(16,185,129,.18)!important; }
+.lmeWarn{ color:#92400e!important; background:rgba(245,158,11,.10)!important; border-color:rgba(245,158,11,.18)!important; }
+
+/* Sketch labels keep stylish blue */
+svg#sketch text, svg#printProxy text{ fill:#3b82f6!important; }
+#sketch line, #sketch path.arrow, #sketch polygon.arrow{ stroke:#38bdf8!important; }
+
+/* Print styles */
+@media print{
+  body{ background:#fff!important; color:#000!important; }
+}
+
+</style>
 </head>
 <body>
   <header>
@@ -593,15 +787,15 @@
       if(typeof j.usd_per_tonne!=='number') throw new Error('Bad JSON');
       lmeLoaded = {value:j.usd_per_tonne, as_of:j.as_of||''};
       window._LME_USD_PER_TONNE = lmeLoaded.value;
-      document.getElementById('lmeEcho').textContent = '$'+fmt(lmeLoaded.value,0)+'/t'+(lmeLoaded.as_of?(' • '+lmeLoaded.as_of):'');
-      document.getElementById('lmeAsOfTop').textContent = lmeLoaded.as_of ? new Date(lmeLoaded.as_of).toUTCString() : 'today';
-      document.getElementById('lmeBanner').style.display='block';
-      setTimeout(()=>{ document.getElementById('lmeBanner').style.display='none'; }, 4000);
+      var _elEcho=document.getElementById('lmeEcho'); if(_elEcho) _elEcho.textContent = '$'+fmt(lmeLoaded.value,0)+'/t'+(lmeLoaded.as_of?(' • '+lmeLoaded.as_of):'');
+      var _elAsOf=document.getElementById('lmeAsOfTop'); if(_elAsOf) _elAsOf.textContent = lmeLoaded.as_of ? new Date(lmeLoaded.as_of).toUTCString() : 'today';
+      var _elBanner=document.getElementById('lmeBanner'); if(_elBanner) _elBanner.style.display='block';
+      if(_elBanner){ setTimeout(()=>{ _elBanner.style.display='none'; }, 4000); }
     }catch(e){
       lmeLoaded = {value:LME_FALLBACK_USD_PER_TONNE, as_of:''};
       window._LME_USD_PER_TONNE = lmeLoaded.value;
-      document.getElementById('lmeEcho').textContent = '$'+fmt(lmeLoaded.value,0)+'/t (fallback)';
-      document.getElementById('lmeWarn').style.display='block';
+      var _elEcho=document.getElementById('lmeEcho'); if(_elEcho) _elEcho.textContent = '$'+fmt(lmeLoaded.value,0)+'/t (fallback)';
+      var _elWarn=document.getElementById('lmeWarn'); if(_elWarn) _elWarn.style.display='block';
     }
 
     document.getElementById('calc').addEventListener('click', () => {
@@ -702,5 +896,137 @@
     return {dimUnit,massUnit,alloyKey,partType,od,id,len,overallLen,flangeThk,flangeOD};
   }
 </script>
+
+<!-- Capacity Guard (prevents impossible jobs before compute) -->
+<script>
+(function(){
+  function install(){
+    const btn = document.getElementById('calc');
+    if(!btn) return;
+    btn.addEventListener('click', function(e){
+      if(e.__cap_reentry) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      (async () => {
+        try{
+          await (window.Capacity?.ready || Promise.resolve());
+          const d = (typeof readDims==='function') ? readDims() : null;
+          if(!d){ return; }
+          const msg = window.Capacity.validate(d);
+          if(msg){
+            (typeof showError==='function') ? showError(msg + ' • Click “Request exception” and we’ll review.') : alert(msg);
+            return;
+          }
+          const evt = new MouseEvent('click', {bubbles:true, cancelable:true});
+          evt.__cap_reentry = true;
+          btn.dispatchEvent(evt);
+        }catch(err){ console.error('Capacity guard error', err); }
+      })();
+    }, true);
+  }
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', install); }
+  else { install(); }
+})();
+</script>
+
+
+<!-- Sketch labels: right-side legend (always visible) -->
+<script>
+(function(){
+  function drawSketch(d, target='sketch'){
+    const svg=document.getElementById(target); if(!svg) return; while(svg.lastChild) svg.removeChild(svg.lastChild);
+    const W=svg.viewBox.baseVal.width||560, H=svg.viewBox.baseVal.height||220;
+    const M=32; const x0=M, y0=M, x1=W-M, y1=H-M; const cy=(y0+y1)/2;
+    const mmf=(u,v)=>u==='mm'?Number(v||0):Number(v||0)*25.4;
+    const ODm=mmf(d.dimUnit,d.od), IDm=mmf(d.dimUnit,d.id||0);
+    const Lm=d.partType==='flanged'?mmf(d.dimUnit,d.overallLen||0):mmf(d.dimUnit,d.len||0);
+    const Tm=d.partType==='flanged'?mmf(d.dimUnit,d.flangeThk||0):0;
+    const FODm=d.partType==='flanged'?mmf(d.dimUnit,d.flangeOD||0):ODm;
+
+    const maxOD=Math.max(ODm||1,FODm||1);
+    const sx = Lm>0 ? (x1-x0-80)/Math.max(Lm,1) : 1.2;
+    const sy = (y1-y0-20)/Math.max(maxOD,1);
+    const Lpx = Math.max(0,Lm)*sx;
+    const Tpx = Math.max(0,Tm)*sx;
+    const ODpx = (ODm/2)*sy;
+    const IDpx = (IDm/2)*sy;
+    const FODpx = (FODm/2)*sy;
+    const bodyLen = Math.max(0, Lpx - Tpx);
+
+    const bronzeFill = 'rgba(201,148,95,0.18)';
+    const stroke = 'rgba(226,232,240,0.95)';
+    function R(x,y,w,h){const r=document.createElementNS('http://www.w3.org/2000/svg','rect'); r.setAttribute('x',x);r.setAttribute('y',y);r.setAttribute('width',w);r.setAttribute('height',h); r.setAttribute('fill',bronzeFill); r.setAttribute('stroke',stroke); r.setAttribute('stroke-width','2'); svg.appendChild(r);}
+    function L(x1,y1,x2,y2,opt={}){const l=document.createElementNS('http://www.w3.org/2000/svg','line'); l.setAttribute('x1',x1);l.setAttribute('y',y1); l.setAttribute('x2',x2); l.setAttribute('y2',y2);
+      l.setAttribute('x1',x1); l.setAttribute('y1',y1); l.setAttribute('x2',x2); l.setAttribute('y2',y2);
+      l.setAttribute('stroke',opt.color||'rgba(148,163,184,0.95)'); l.setAttribute('stroke-width',opt.w||1); if(opt.dash)l.setAttribute('stroke-dasharray',opt.dash); svg.appendChild(l);
+    }
+    function labelPill(x,y,txt,opts={}){
+      const t=document.createElementNS('http://www.w3.org/2000/svg','text');
+      t.setAttribute('x', x); t.setAttribute('y', y);
+      t.setAttribute('fill','#3b82f6'); t.setAttribute('font-size','13'); t.setAttribute('font-weight','700');
+      t.setAttribute('paint-order','stroke'); t.setAttribute('stroke','rgba(2,8,23,.92)'); t.setAttribute('stroke-width','2'); t.setAttribute('stroke-linejoin','round');
+      t.setAttribute('text-anchor', opts.anchor || 'middle'); t.setAttribute('font-family','Inter, system-ui, sans-serif');
+      t.textContent = txt; svg.appendChild(t);
+      const bb=t.getBBox(); const pad=3;
+      const bg=document.createElementNS('http://www.w3.org/2000/svg','rect');
+      bg.setAttribute('x',bb.x-pad); bg.setAttribute('y',bb.y-pad); bg.setAttribute('width',bb.width+pad*2); bg.setAttribute('height',bb.height+pad*2);
+      bg.setAttribute('rx','4'); bg.setAttribute('ry','4'); bg.setAttribute('fill','rgba(2,8,23,.55)');
+      svg.insertBefore(bg,t);
+    }
+    function Arrow(x1,y1,x2,y2,label,dy=0){
+      const c='#38bdf8'; L(x1,y1,x2,y2,{color:c,w:1.6});
+      function tip(x,y,dx,dy){ L(x,y,x-dx+dy*.5,y-dy-dx*.5,{color:c,w:1.6}); L(x,y,x-dx-dy*.5,y-dy+dx*.5,{color:c,w:1.6}); }
+      tip(x1,y1,(x1<x2?-6:6),(y1<y2?-6:6)); tip(x2,y2,(x1<x2?6:-6),(y1<y2?6:-6));
+      if(label){ labelPill((x1+x2)/2, (y1+y2)/2 + dy, label); }
+    }
+
+    if(!(ODm>0 && Lm>0)){
+      const t=document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('x',M); t.setAttribute('y',H/2);
+      t.setAttribute('fill','rgba(148,163,184,.9)'); t.setAttribute('font-size','12'); t.setAttribute('font-family','Inter, system-ui, sans-serif'); t.textContent='Enter dimensions to preview the sketch.'; svg.appendChild(t);
+      return;
+    }
+
+    // Draw shapes
+    const top = cy-ODpx, bottom = cy+ODpx;
+    R(x0, top, (d.partType==='flanged'? bodyLen : Lpx), ODpx*2);
+    if(IDm>0){ L(x0, cy-IDpx, x0+(d.partType==='flanged'? bodyLen : Lpx), cy-IDpx); L(x0, cy+IDpx, x0+(d.partType==='flanged'? bodyLen : Lpx), cy+IDpx); }
+    if(d.partType==='flanged' && Tpx>0){
+      const flX = x0 + bodyLen;
+      R(flX, cy-FODpx, Tpx, FODpx*2);
+      if(IDm>0){ L(flX, cy-IDpx, flX+Tpx, cy-IDpx); L(flX, cy+IDpx, flX+Tpx, cy+IDpx); }
+    }
+
+    // Top lengths (same as before)
+    if(d.partType==='flanged' && Tpx>0){
+      Arrow(x0, top-14, x0+bodyLen, top-14, `Body ${(Lm-Tm).toFixed(0)} ${d.dimUnit}`, -2);
+      Arrow(x0+bodyLen, bottom+18, x0+bodyLen+Tpx, bottom+18, `T ${Tm.toFixed(0)} ${d.dimUnit}`, 0);
+      Arrow(x0, top-34, x0+Lpx, top-34, `Overall ${Lm.toFixed(0)} ${d.dimUnit}`, -2);
+    } else {
+      Arrow(x0, top-18, x0+Lpx, top-18, `L ${Lm.toFixed(0)} ${d.dimUnit}`, -2);
+    }
+
+    // Vertical arrows stay, but labels move to the RIGHT as a legend.
+    const xOD = x0-28, xID = x0-54, xFOD = x0+Lpx+28;
+    Arrow(xOD, cy-ODpx, xOD, cy+ODpx, null);
+    if(IDm>0) Arrow(xID, cy-IDpx, xID, cy+IDpx, null);
+    if(d.partType==='flanged' && FODm>ODm) Arrow(xFOD, cy-FODpx, xFOD, cy+FODpx, null);
+
+    // Right-side legend pills
+    const legendX = Math.min(W-70, x0 + Lpx + 60);
+    const legendTop = y0 + 6;
+    let row = 0;
+    function addLegend(text){
+      const y = legendTop + row*20;
+      labelPill(legendX, y, text, {anchor:'start'});
+      row++;
+    }
+    addLegend(`OD ${ODm.toFixed(0)} ${d.dimUnit}`);
+    if(IDm>0) addLegend(`ID ${IDm.toFixed(0)} ${d.dimUnit}`);
+    if(d.partType==='flanged' && FODm>ODm) addLegend(`FOD ${FODm.toFixed(0)} ${d.dimUnit}`);
+  }
+  window.drawSketch = drawSketch;
+})();
+</script>
+
 </body>
 </html>
