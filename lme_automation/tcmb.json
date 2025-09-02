@@ -1,13 +1,13 @@
 {
-  "as_of": "29.08.2025",
+  "as_of": "01.09.2025",
   "source": "TCMB today.xml",
   "field": "ForexSelling",
-  "USDTRY": 41.0178,
-  "EURTRY": 47.8702,
-  "GBPTRY": 55.3552,
+  "USDTRY": 41.1118,
+  "EURTRY": 48.1967,
+  "GBPTRY": 55.716,
   "gold": {
-    "XAUUSD": 3484.62,
-    "gram_try": 4595.352704621112
+    "XAUUSD": null,
+    "gram_try": null
   },
-  "updated_at": "2025-09-01T06:26:45.825Z"
+  "updated_at": "2025-09-02T05:37:57.927Z"
 }
