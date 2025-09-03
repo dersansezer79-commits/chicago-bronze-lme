@@ -3,70 +3,91 @@ name: Set Metals + FX (Bulk)
 on:
   workflow_dispatch:
     inputs:
-      # --- FX (optional) ---
-      usdtry:  { description: "USD/TRY (e.g., 41.15)", required: false, type: string }
-      eurtry:  { description: "EUR/TRY (optional)",     required: false, type: string }
-      gbptry:  { description: "GBP/TRY (optional)",     required: false, type: string }
-      xauusd:  { description: "XAU/USD (optional)",     required: false, type: string }
-      gram_try:{ description: "Gram Altın TRY (optional)", required: false, type: string }
+      usdtry:
+        description: "USD/TRY (e.g., 41.15)"
+        required: false
+        type: string
+      eurtry:
+        description: "EUR/TRY (optional)"
+        required: false
+        type: string
+      gbptry:
+        description: "GBP/TRY (optional)"
+        required: false
+        type: string
+      xauusd:
+        description: "XAU/USD (optional)"
+        required: false
+        type: string
+      gram_try:
+        description: "Gram Altın TRY (optional)"
+        required: false
+        type: string
       fx_field:
         description: "TCMB field name"
         required: false
         type: choice
-        options: [ForexSelling, BanknoteSelling]
-        default: ForexSelling
-      fx_note: { description: "FX note (source/date)", required: false, type: string }
+        options:
+          - "ForexSelling"
+          - "BanknoteSelling"
+        default: "ForexSelling"
+      fx_note:
+        description: "FX note (source/date)"
+        required: false
+        type: string
 
-      # --- Metals (fill the ones you have; leave others blank) ---
-      note: { description: "Metals note (source/date)", required: false, type: string }
+      note:
+        description: "Metals note (source/date)"
+        required: false
+        type: string
 
       price_aluminum: { description: "Al price", required: false, type: string }
       unit_aluminum:
         description: "Al unit"
         required: false
         type: choice
-        options: [USD_per_kg, USD_per_tonne, USD_per_ton_US, TRY_per_kg]
-        default: USD_per_tonne
+        options: ["USD_per_kg","USD_per_tonne","USD_per_ton_US","TRY_per_kg"]
+        default: "USD_per_tonne"
 
       price_copper: { description: "Cu price", required: false, type: string }
       unit_copper:
         description: "Cu unit"
         required: false
         type: choice
-        options: [USD_per_kg, USD_per_tonne, USD_per_ton_US, TRY_per_kg]
-        default: USD_per_tonne
+        options: ["USD_per_kg","USD_per_tonne","USD_per_ton_US","TRY_per_kg"]
+        default: "USD_per_tonne"
 
       price_lead: { description: "Pb price", required: false, type: string }
       unit_lead:
         description: "Pb unit"
         required: false
         type: choice
-        options: [USD_per_kg, USD_per_tonne, USD_per_ton_US, TRY_per_kg]
-        default: USD_per_tonne
+        options: ["USD_per_kg","USD_per_tonne","USD_per_ton_US","TRY_per_kg"]
+        default: "USD_per_tonne"
 
       price_nickel: { description: "Ni price", required: false, type: string }
       unit_nickel:
         description: "Ni unit"
         required: false
         type: choice
-        options: [USD_per_kg, USD_per_tonne, USD_per_ton_US, TRY_per_kg]
-        default: USD_per_tonne
+        options: ["USD_per_kg","USD_per_tonne","USD_per_ton_US","TRY_per_kg"]
+        default: "USD_per_tonne"
 
       price_zinc: { description: "Zn price", required: false, type: string }
       unit_zinc:
         description: "Zn unit"
         required: false
         type: choice
-        options: [USD_per_kg, USD_per_tonne, USD_per_ton_US, TRY_per_kg]
-        default: USD_per_tonne
+        options: ["USD_per_kg","USD_per_tonne","USD_per_ton_US","TRY_per_kg"]
+        default: "USD_per_tonne"
 
       price_tin: { description: "Sn price", required: false, type: string }
       unit_tin:
         description: "Sn unit"
         required: false
         type: choice
-        options: [USD_per_kg, USD_per_tonne, USD_per_ton_US, TRY_per_kg]
-        default: USD_per_tonne
+        options: ["USD_per_kg","USD_per_tonne","USD_per_ton_US","TRY_per_kg"]
+        default: "USD_per_tonne"
 
 permissions:
   contents: write
@@ -79,9 +100,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
 
-      - name: Update lme.json + tcmb.json (inline, no ESM issues)
+      - name: Update lme.json + tcmb.json
         env:
-          # FX
           INPUT_USDTRY:   ${{ github.event.inputs.usdtry }}
           INPUT_EURTRY:   ${{ github.event.inputs.eurtry }}
           INPUT_GBPTRY:   ${{ github.event.inputs.gbptry }}
@@ -89,7 +109,7 @@ jobs:
           INPUT_GRAM_TRY: ${{ github.event.inputs.gram_try }}
           INPUT_FX_FIELD: ${{ github.event.inputs.fx_field }}
           INPUT_FX_NOTE:  ${{ github.event.inputs.fx_note }}
-          # Metals
+
           INPUT_NOTE:   ${{ github.event.inputs.note }}
           INPUT_PRICE_ALUMINUM: ${{ github.event.inputs.price_aluminum }}
           INPUT_UNIT_ALUMINUM:  ${{ github.event.inputs.unit_aluminum }}
@@ -107,19 +127,12 @@ jobs:
           node - <<'JS'
           const fs = require('fs');
           const path = require('path');
-
-          // ---------- helpers ----------
           const toF = s => s ? parseFloat(String(s).replace(',', '.')) : NaN;
           const KG_PER_TONNE = 1000;
           const KG_PER_TON_US = 907.18474;
 
-          function istanbulDateDDMMYYYY() {
-            const fmt = new Intl.DateTimeFormat('tr-TR', {
-              timeZone: 'Europe/Istanbul', day: '2-digit', month: '2-digit', year: 'numeric'
-            });
-            // format like "03.09.2025"
-            return fmt.format(new Date());
-          }
+          const usdtryTop = toF(process.env.INPUT_USDTRY);
+          const note = process.env.INPUT_NOTE || "";
 
           function toUsdPerKg(price, unit, usdtry) {
             switch (unit) {
@@ -133,10 +146,7 @@ jobs:
             }
           }
 
-          // ---------- METALS ----------
-          const usdtryTop = toF(process.env.INPUT_USDTRY); // may be used for TRY_per_kg conversion
-          const note = process.env.INPUT_NOTE || "";
-
+          // --- metals ---
           const entries = [
             ["aluminum","INPUT_PRICE_ALUMINUM","INPUT_UNIT_ALUMINUM"],
             ["copper","INPUT_PRICE_COPPER","INPUT_UNIT_COPPER"],
@@ -155,34 +165,33 @@ jobs:
             meta: { sources_used:{}, usdtry:null, notes:"" }
           };
           lme.meta.sources_used ||= {};
+          const updates = [];
 
-          const metalUpdates = [];
           for (const [m, pKey, uKey] of entries) {
             const raw = process.env[pKey];
-            if (!raw) continue; // not supplied
+            if (!raw) continue;
             const unit = process.env[uKey] || "USD_per_tonne";
             const price = toF(raw);
             if (!isFinite(price)) continue;
             const usdkg = Math.round(toUsdPerKg(price, unit, usdtryTop) * 1e6)/1e6;
             lme.usd_per_kg[m] = usdkg;
             lme.meta.sources_used[m] = `manual-bulk@GitHubActions (${unit})`;
-            metalUpdates.push(`${m}=${usdkg} USD/kg`);
+            updates.push(`${m}=${usdkg} USD/kg`);
           }
+
           if (isFinite(usdtryTop) && usdtryTop > 0) lme.meta.usdtry = usdtryTop;
           const stamp = new Date().toISOString();
           lme.timestamp = stamp;
-          if (metalUpdates.length) {
-            const line = `[${stamp}] ${metalUpdates.join(", ")}${note ? " :: "+note : ""}`;
+          if (updates.length) {
+            const line = `[${stamp}] ${updates.join(", ")}${note ? " :: "+note : ""}`;
             lme.meta.notes = (lme.meta.notes ? lme.meta.notes + " | " : "") + line;
           }
           fs.writeFileSync(lmePath, JSON.stringify(lme, null, 2));
           console.log("Wrote", lmePath);
 
-          // ---------- FX (tcmb.json) ----------
+          // --- fx ---
           const fxField = process.env.INPUT_FX_FIELD || "ForexSelling";
           const fxNote  = process.env.INPUT_FX_NOTE || "";
-
-          // Only write if at least one FX value provided
           const fxInputs = {
             USDTRY: toF(process.env.INPUT_USDTRY),
             EURTRY: toF(process.env.INPUT_EURTRY),
@@ -196,7 +205,7 @@ jobs:
             const tcmbPath = path.join('lme_automation','tcmb.json');
             fs.mkdirSync(path.dirname(tcmbPath), { recursive: true });
             let tcmb = fs.existsSync(tcmbPath) ? JSON.parse(fs.readFileSync(tcmbPath,'utf8')) : {
-              as_of: istanbulDateDDMMYYYY(),
+              as_of: new Intl.DateTimeFormat('tr-TR',{timeZone:'Europe/Istanbul', day:'2-digit', month:'2-digit', year:'numeric'}).format(new Date()),
               source: "manual@GitHubActions",
               field: fxField,
               USDTRY: null, EURTRY: null, GBPTRY: null,
@@ -204,7 +213,6 @@ jobs:
               updated_at: new Date().toISOString()
             };
 
-            // keep existing values if a field is not supplied
             if (isFinite(fxInputs.USDTRY)) tcmb.USDTRY = fxInputs.USDTRY;
             if (isFinite(fxInputs.EURTRY)) tcmb.EURTRY = fxInputs.EURTRY;
             if (isFinite(fxInputs.GBPTRY)) tcmb.GBPTRY = fxInputs.GBPTRY;
@@ -213,13 +221,12 @@ jobs:
 
             tcmb.field = fxField;
             tcmb.source = fxNote ? `manual@GitHubActions — ${fxNote}` : "manual@GitHubActions";
-            tcmb.as_of = istanbulDateDDMMYYYY();
             tcmb.updated_at = new Date().toISOString();
 
             fs.writeFileSync(tcmbPath, JSON.stringify(tcmb, null, 2));
             console.log("Wrote", tcmbPath);
           } else {
-            console.log("No FX values provided; tcmb.json left unchanged.");
+            console.log("No FX inputs provided; tcmb.json unchanged.");
           }
           JS
 
