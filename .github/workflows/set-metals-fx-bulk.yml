@@ -1,0 +1,232 @@
+name: Set Metals + FX (Bulk)
+
+on:
+  workflow_dispatch:
+    inputs:
+      # --- FX (optional) ---
+      usdtry:  { description: "USD/TRY (e.g., 41.15)", required: false, type: string }
+      eurtry:  { description: "EUR/TRY (optional)",     required: false, type: string }
+      gbptry:  { description: "GBP/TRY (optional)",     required: false, type: string }
+      xauusd:  { description: "XAU/USD (optional)",     required: false, type: string }
+      gram_try:{ description: "Gram Altın TRY (optional)", required: false, type: string }
+      fx_field:
+        description: "TCMB field name"
+        required: false
+        type: choice
+        options: [ForexSelling, BanknoteSelling]
+        default: ForexSelling
+      fx_note: { description: "FX note (source/date)", required: false, type: string }
+
+      # --- Metals (fill the ones you have; leave others blank) ---
+      note: { description: "Metals note (source/date)", required: false, type: string }
+
+      price_aluminum: { description: "Al price", required: false, type: string }
+      unit_aluminum:
+        description: "Al unit"
+        required: false
+        type: choice
+        options: [USD_per_kg, USD_per_tonne, USD_per_ton_US, TRY_per_kg]
+        default: USD_per_tonne
+
+      price_copper: { description: "Cu price", required: false, type: string }
+      unit_copper:
+        description: "Cu unit"
+        required: false
+        type: choice
+        options: [USD_per_kg, USD_per_tonne, USD_per_ton_US, TRY_per_kg]
+        default: USD_per_tonne
+
+      price_lead: { description: "Pb price", required: false, type: string }
+      unit_lead:
+        description: "Pb unit"
+        required: false
+        type: choice
+        options: [USD_per_kg, USD_per_tonne, USD_per_ton_US, TRY_per_kg]
+        default: USD_per_tonne
+
+      price_nickel: { description: "Ni price", required: false, type: string }
+      unit_nickel:
+        description: "Ni unit"
+        required: false
+        type: choice
+        options: [USD_per_kg, USD_per_tonne, USD_per_ton_US, TRY_per_kg]
+        default: USD_per_tonne
+
+      price_zinc: { description: "Zn price", required: false, type: string }
+      unit_zinc:
+        description: "Zn unit"
+        required: false
+        type: choice
+        options: [USD_per_kg, USD_per_tonne, USD_per_ton_US, TRY_per_kg]
+        default: USD_per_tonne
+
+      price_tin: { description: "Sn price", required: false, type: string }
+      unit_tin:
+        description: "Sn unit"
+        required: false
+        type: choice
+        options: [USD_per_kg, USD_per_tonne, USD_per_ton_US, TRY_per_kg]
+        default: USD_per_tonne
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+
+      - name: Update lme.json + tcmb.json (inline, no ESM issues)
+        env:
+          # FX
+          INPUT_USDTRY:   ${{ github.event.inputs.usdtry }}
+          INPUT_EURTRY:   ${{ github.event.inputs.eurtry }}
+          INPUT_GBPTRY:   ${{ github.event.inputs.gbptry }}
+          INPUT_XAUUSD:   ${{ github.event.inputs.xauusd }}
+          INPUT_GRAM_TRY: ${{ github.event.inputs.gram_try }}
+          INPUT_FX_FIELD: ${{ github.event.inputs.fx_field }}
+          INPUT_FX_NOTE:  ${{ github.event.inputs.fx_note }}
+          # Metals
+          INPUT_NOTE:   ${{ github.event.inputs.note }}
+          INPUT_PRICE_ALUMINUM: ${{ github.event.inputs.price_aluminum }}
+          INPUT_UNIT_ALUMINUM:  ${{ github.event.inputs.unit_aluminum }}
+          INPUT_PRICE_COPPER:   ${{ github.event.inputs.price_copper }}
+          INPUT_UNIT_COPPER:    ${{ github.event.inputs.unit_copper }}
+          INPUT_PRICE_LEAD:     ${{ github.event.inputs.price_lead }}
+          INPUT_UNIT_LEAD:      ${{ github.event.inputs.unit_lead }}
+          INPUT_PRICE_NICKEL:   ${{ github.event.inputs.price_nickel }}
+          INPUT_UNIT_NICKEL:    ${{ github.event.inputs.unit_nickel }}
+          INPUT_PRICE_ZINC:     ${{ github.event.inputs.price_zinc }}
+          INPUT_UNIT_ZINC:      ${{ github.event.inputs.unit_zinc }}
+          INPUT_PRICE_TIN:      ${{ github.event.inputs.price_tin }}
+          INPUT_UNIT_TIN:       ${{ github.event.inputs.unit_tin }}
+        run: |
+          node - <<'JS'
+          const fs = require('fs');
+          const path = require('path');
+
+          // ---------- helpers ----------
+          const toF = s => s ? parseFloat(String(s).replace(',', '.')) : NaN;
+          const KG_PER_TONNE = 1000;
+          const KG_PER_TON_US = 907.18474;
+
+          function istanbulDateDDMMYYYY() {
+            const fmt = new Intl.DateTimeFormat('tr-TR', {
+              timeZone: 'Europe/Istanbul', day: '2-digit', month: '2-digit', year: 'numeric'
+            });
+            // format like "03.09.2025"
+            return fmt.format(new Date());
+          }
+
+          function toUsdPerKg(price, unit, usdtry) {
+            switch (unit) {
+              case "USD_per_kg":     return price;
+              case "USD_per_tonne":  return price / KG_PER_TONNE;
+              case "USD_per_ton_US": return price / KG_PER_TON_US;
+              case "TRY_per_kg":
+                if (!isFinite(usdtry) || usdtry <= 0) throw new Error("USD/TRY required for TRY_per_kg");
+                return price / usdtry;
+              default: throw new Error("Bad unit: " + unit);
+            }
+          }
+
+          // ---------- METALS ----------
+          const usdtryTop = toF(process.env.INPUT_USDTRY); // may be used for TRY_per_kg conversion
+          const note = process.env.INPUT_NOTE || "";
+
+          const entries = [
+            ["aluminum","INPUT_PRICE_ALUMINUM","INPUT_UNIT_ALUMINUM"],
+            ["copper","INPUT_PRICE_COPPER","INPUT_UNIT_COPPER"],
+            ["lead","INPUT_PRICE_LEAD","INPUT_UNIT_LEAD"],
+            ["nickel","INPUT_PRICE_NICKEL","INPUT_UNIT_NICKEL"],
+            ["zinc","INPUT_PRICE_ZINC","INPUT_UNIT_ZINC"],
+            ["tin","INPUT_PRICE_TIN","INPUT_UNIT_TIN"],
+          ];
+
+          const lmePath = path.join('lme_automation','lme.json');
+          fs.mkdirSync(path.dirname(lmePath), { recursive: true });
+          let lme = fs.existsSync(lmePath) ? JSON.parse(fs.readFileSync(lmePath,'utf8')) : {
+            timestamp: new Date().toISOString(),
+            usd_per_kg: { aluminum:0, copper:0, lead:0, nickel:0, zinc:0, tin:0 },
+            benchmarks: { wsj_usa_copper_lb: null, wsj_usa_copper_kg: null },
+            meta: { sources_used:{}, usdtry:null, notes:"" }
+          };
+          lme.meta.sources_used ||= {};
+
+          const metalUpdates = [];
+          for (const [m, pKey, uKey] of entries) {
+            const raw = process.env[pKey];
+            if (!raw) continue; // not supplied
+            const unit = process.env[uKey] || "USD_per_tonne";
+            const price = toF(raw);
+            if (!isFinite(price)) continue;
+            const usdkg = Math.round(toUsdPerKg(price, unit, usdtryTop) * 1e6)/1e6;
+            lme.usd_per_kg[m] = usdkg;
+            lme.meta.sources_used[m] = `manual-bulk@GitHubActions (${unit})`;
+            metalUpdates.push(`${m}=${usdkg} USD/kg`);
+          }
+          if (isFinite(usdtryTop) && usdtryTop > 0) lme.meta.usdtry = usdtryTop;
+          const stamp = new Date().toISOString();
+          lme.timestamp = stamp;
+          if (metalUpdates.length) {
+            const line = `[${stamp}] ${metalUpdates.join(", ")}${note ? " :: "+note : ""}`;
+            lme.meta.notes = (lme.meta.notes ? lme.meta.notes + " | " : "") + line;
+          }
+          fs.writeFileSync(lmePath, JSON.stringify(lme, null, 2));
+          console.log("Wrote", lmePath);
+
+          // ---------- FX (tcmb.json) ----------
+          const fxField = process.env.INPUT_FX_FIELD || "ForexSelling";
+          const fxNote  = process.env.INPUT_FX_NOTE || "";
+
+          // Only write if at least one FX value provided
+          const fxInputs = {
+            USDTRY: toF(process.env.INPUT_USDTRY),
+            EURTRY: toF(process.env.INPUT_EURTRY),
+            GBPTRY: toF(process.env.INPUT_GBPTRY),
+            XAUUSD: toF(process.env.INPUT_XAUUSD),
+            gram_try: toF(process.env.INPUT_GRAM_TRY)
+          };
+          const anyFX = Object.values(fxInputs).some(v => isFinite(v));
+
+          if (anyFX) {
+            const tcmbPath = path.join('lme_automation','tcmb.json');
+            fs.mkdirSync(path.dirname(tcmbPath), { recursive: true });
+            let tcmb = fs.existsSync(tcmbPath) ? JSON.parse(fs.readFileSync(tcmbPath,'utf8')) : {
+              as_of: istanbulDateDDMMYYYY(),
+              source: "manual@GitHubActions",
+              field: fxField,
+              USDTRY: null, EURTRY: null, GBPTRY: null,
+              gold: { XAUUSD: null, gram_try: null },
+              updated_at: new Date().toISOString()
+            };
+
+            // keep existing values if a field is not supplied
+            if (isFinite(fxInputs.USDTRY)) tcmb.USDTRY = fxInputs.USDTRY;
+            if (isFinite(fxInputs.EURTRY)) tcmb.EURTRY = fxInputs.EURTRY;
+            if (isFinite(fxInputs.GBPTRY)) tcmb.GBPTRY = fxInputs.GBPTRY;
+            if (isFinite(fxInputs.XAUUSD)) tcmb.gold = { ...(tcmb.gold||{}), XAUUSD: fxInputs.XAUUSD };
+            if (isFinite(fxInputs.gram_try)) tcmb.gold = { ...(tcmb.gold||{}), gram_try: fxInputs.gram_try };
+
+            tcmb.field = fxField;
+            tcmb.source = fxNote ? `manual@GitHubActions — ${fxNote}` : "manual@GitHubActions";
+            tcmb.as_of = istanbulDateDDMMYYYY();
+            tcmb.updated_at = new Date().toISOString();
+
+            fs.writeFileSync(tcmbPath, JSON.stringify(tcmb, null, 2));
+            console.log("Wrote", tcmbPath);
+          } else {
+            console.log("No FX values provided; tcmb.json left unchanged.");
+          }
+          JS
+
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: bulk metals + FX update"
+          file_pattern: |
+            lme_automation/lme.json
+            lme_automation/tcmb.json
