@@ -1,167 +1,130 @@
-name: Set Metal (Manual)
+name: Set Metals (Bulk)
 
 on:
   workflow_dispatch:
     inputs:
-      metal:
-        description: "Choose the metal"
-        required: true
-        type: choice
-        options: [aluminum, copper, lead, nickel, zinc, tin]
-        default: copper
-      price:
-        description: "Price (use dot, e.g., 30450.5)"
-        required: true
-        type: string
-      unit:
-        description: "Unit of the price you entered"
-        required: true
-        type: choice
-        options: ["USD/kg", "USD/tonne", "USD/ton", "TRY/kg"]
-        default: "USD/tonne"
       usdtry:
-        description: "USD/TRY rate (only if unit is TRY/kg)"
+        description: "USD/TRY (only used for TRY/kg entries)"
         required: false
         type: string
       note:
-        description: "Optional note (e.g., source/date)"
+        description: "Optional note (source/date)"
         required: false
         type: string
+
+      price_aluminum: { description: "Al price", required: false, type: string }
+      unit_aluminum:  { description: "Al unit",  required: false, type: choice, options: ["USD/kg","USD/tonne","USD/ton","TRY/kg"], default: "USD/tonne" }
+      price_copper:   { description: "Cu price", required: false, type: string }
+      unit_copper:    { description: "Cu unit",  required: false, type: choice, options: ["USD/kg","USD/tonne","USD/ton","TRY/kg"], default: "USD/tonne" }
+      price_lead:     { description: "Pb price", required: false, type: string }
+      unit_lead:      { description: "Pb unit",  required: false, type: choice, options: ["USD/kg","USD/tonne","USD/ton","TRY/kg"], default: "USD/tonne" }
+      price_nickel:   { description: "Ni price", required: false, type: string }
+      unit_nickel:    { description: "Ni unit",  required: false, type: choice, options: ["USD/kg","USD/tonne","USD/ton","TRY/kg"], default: "USD/tonne" }
+      price_zinc:     { description: "Zn price", required: false, type: string }
+      unit_zinc:      { description: "Zn unit",  required: false, type: choice, options: ["USD/kg","USD/tonne","USD/ton","TRY/kg"], default: "USD/tonne" }
+      price_tin:      { description: "Sn price", required: false, type: string }
+      unit_tin:       { description: "Sn unit",  required: false, type: choice, options: ["USD/kg","USD/tonne","USD/ton","TRY/kg"], default: "USD/tonne" }
 
 jobs:
   run:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Write updater script
+      - name: Write bulk updater (CommonJS)
         run: |
           mkdir -p tools
-          cat > tools/update_lme_manual.js <<'JS'
-          #!/usr/bin/env node
+          cat > tools/update_lme_bulk.cjs <<'JS'
           const fs = require('fs');
           const path = require('path');
-
-          const allowed = ["aluminum","copper","lead","nickel","zinc","tin"];
-          const metal = (process.env.INPUT_METAL || "").toLowerCase();
-          const priceStr = process.env.INPUT_PRICE || "";
-          const unit = process.env.INPUT_UNIT || "USD/tonne";
-          const usdtryStr = process.env.INPUT_USDTRY || "";
-          const note = process.env.INPUT_NOTE || "";
-
-          if (!allowed.includes(metal)) {
-            console.error("Invalid metal:", metal);
-            process.exit(1);
-          }
-
-          const toFloat = s => {
-            if (typeof s !== "string") return NaN;
-            return parseFloat(s.replace(",", "."));
-          };
-
-          let price = toFloat(priceStr);
-          if (!isFinite(price)) {
-            console.error("Invalid price:", priceStr);
-            process.exit(1);
-          }
-
           const KG_PER_TONNE = 1000;
           const KG_PER_TON_US = 907.18474;
+          const toF = s => s ? parseFloat(String(s).replace(',', '.')) : NaN;
 
-          function toUsdPerKg(p, unit) {
+          const inputs = process.env;
+          const usdtry = toF(inputs.INPUT_USDTRY);
+          const note = inputs.INPUT_NOTE || "";
+
+          const metals = [
+            ["aluminum","INPUT_PRICE_ALUMINUM","INPUT_UNIT_ALUMINUM"],
+            ["copper","INPUT_PRICE_COPPER","INPUT_UNIT_COPPER"],
+            ["lead","INPUT_PRICE_LEAD","INPUT_UNIT_LEAD"],
+            ["nickel","INPUT_PRICE_NICKEL","INPUT_UNIT_NICKEL"],
+            ["zinc","INPUT_PRICE_ZINC","INPUT_UNIT_ZINC"],
+            ["tin","INPUT_PRICE_TIN","INPUT_UNIT_TIN"],
+          ];
+
+          function toUsdPerKg(price, unit) {
             switch (unit) {
-              case "USD/kg":    return p;
-              case "USD/tonne": return p / KG_PER_TONNE;
-              case "USD/ton":   return p / KG_PER_TON_US; // short ton (US)
-              case "TRY/kg": {
-                const usdtry = toFloat(usdtryStr);
-                if (!isFinite(usdtry) || usdtry <= 0) {
-                  console.error("USD/TRY required and must be > 0 for TRY/kg.");
-                  process.exit(1);
-                }
-                return p / usdtry; // TRY/kg -> USD/kg
-              }
-              default:
-                console.error("Unknown unit:", unit);
-                process.exit(1);
+              case "USD/kg":    return price;
+              case "USD/tonne": return price / KG_PER_TONNE;
+              case "USD/ton":   return price / KG_PER_TON_US;
+              case "TRY/kg":
+                if (!isFinite(usdtry) || usdtry <= 0) throw new Error("USD/TRY required for TRY/kg");
+                return price / usdtry;
+              default: throw new Error("Bad unit: " + unit);
             }
           }
 
-          const usdPerKg = Math.round(toUsdPerKg(price, unit) * 1e6) / 1e6; // 6 decimals
-          const filePath = process.env.LME_JSON_PATH || path.join("lme_automation","lme.json");
+          const fp = path.join('lme_automation','lme.json');
+          fs.mkdirSync(path.dirname(fp), { recursive: true });
+          let data = fs.existsSync(fp) ? JSON.parse(fs.readFileSync(fp,'utf8')) : {
+            timestamp: new Date().toISOString(),
+            usd_per_kg: { aluminum:0, copper:0, lead:0, nickel:0, zinc:0, tin:0 },
+            benchmarks: { wsj_usa_copper_lb: null, wsj_usa_copper_kg: null },
+            meta: { sources_used:{}, usdtry:null, notes:"" }
+          };
+          data.meta.sources_used ||= {};
 
-          // Ensure directory
-          fs.mkdirSync(path.dirname(filePath), { recursive: true });
-
-          // Load or create baseline
-          let data;
-          if (fs.existsSync(filePath)) {
-            data = JSON.parse(fs.readFileSync(filePath, "utf8"));
-          } else {
-            data = {
-              timestamp: new Date().toISOString(),
-              usd_per_kg: { aluminum:0, copper:0, lead:0, nickel:0, zinc:0, tin:0 },
-              benchmarks: { wsj_usa_copper_lb: null, wsj_usa_copper_kg: null },
-              meta: {
-                sources_used: {
-                  aluminum:"unknown", copper:"unknown", lead:"unknown",
-                  nickel:"unknown", zinc:"unknown", tin:"unknown",
-                  wsj_usa_copper:"unknown"
-                },
-                usdtry: null,
-                notes: ""
-              }
-            };
+          const updates = [];
+          for (const [m, pKey, uKey] of metals) {
+            const pRaw = inputs[pKey]; if (!pRaw) continue;
+            const unit = inputs[uKey] || "USD/tonne";
+            const price = toF(pRaw); if (!isFinite(price)) continue;
+            const usdkg = Math.round(toUsdPerKg(price, unit) * 1e6)/1e6;
+            data.usd_per_kg[m] = usdkg;
+            data.meta.sources_used[m] = `manual-bulk@GitHubActions (${unit})`;
+            updates.push(`${m}=${usdkg} USD/kg`);
           }
 
-          // Update fields
-          if (!data.usd_per_kg) data.usd_per_kg = {};
-          data.usd_per_kg[metal] = usdPerKg;
-
-          if (!data.meta) data.meta = {};
-          if (!data.meta.sources_used) data.meta.sources_used = {};
-          data.meta.sources_used[metal] = `manual@GitHubActions (${unit})`;
-
-          if (unit === "TRY/kg") {
-            const u = toFloat(usdtryStr);
-            if (isFinite(u) && u > 0) data.meta.usdtry = u;
-          }
-
+          if (isFinite(usdtry) && usdtry > 0) data.meta.usdtry = usdtry;
           const stamp = new Date().toISOString();
           data.timestamp = stamp;
+          if (updates.length) {
+            const line = `[${stamp}] ${updates.join(", ")}${note ? " :: "+note : ""}`;
+            data.meta.notes = (data.meta.notes ? data.meta.notes + " | " : "") + line;
+          }
 
-          const noteLine = note ? `[${stamp}] ${metal}=${usdPerKg} USD/kg :: ${note}` : `[${stamp}] ${metal}=${usdPerKg} USD/kg`;
-          data.meta.notes = (data.meta.notes ? data.meta.notes + " | " : "") + noteLine;
-
-          fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-          console.log("Updated", filePath, "=>", metal, usdPerKg, "USD/kg");
+          fs.writeFileSync(fp, JSON.stringify(data, null, 2));
+          console.log("Updated", fp, updates);
           JS
+          chmod +x tools/update_lme_bulk.cjs
 
-          chmod +x tools/update_lme_manual.js
-
-      - name: Update lme.json
+      - name: Update lme.json (bulk)
         env:
-          INPUT_METAL: ${{ github.event.inputs.metal }}
-          INPUT_PRICE: ${{ github.event.inputs.price }}
-          INPUT_UNIT:  ${{ github.event.inputs.unit }}
           INPUT_USDTRY: ${{ github.event.inputs.usdtry }}
-          INPUT_NOTE: ${{ github.event.inputs.note }}
-          LME_JSON_PATH: lme_automation/lme.json
-        run: node tools/update_lme_manual.js
+          INPUT_NOTE:   ${{ github.event.inputs.note }}
+
+          INPUT_PRICE_ALUMINUM: ${{ github.event.inputs.price_aluminum }}
+          INPUT_UNIT_ALUMINUM:  ${{ github.event.inputs.unit_aluminum }}
+          INPUT_PRICE_COPPER:   ${{ github.event.inputs.price_copper }}
+          INPUT_UNIT_COPPER:    ${{ github.event.inputs.unit_copper }}
+          INPUT_PRICE_LEAD:     ${{ github.event.inputs.price_lead }}
+          INPUT_UNIT_LEAD:      ${{ github.event.inputs.unit_lead }}
+          INPUT_PRICE_NICKEL:   ${{ github.event.inputs.price_nickel }}
+          INPUT_UNIT_NICKEL:    ${{ github.event.inputs.unit_nickel }}
+          INPUT_PRICE_ZINC:     ${{ github.event.inputs.price_zinc }}
+          INPUT_UNIT_ZINC:      ${{ github.event.inputs.unit_zinc }}
+          INPUT_PRICE_TIN:      ${{ github.event.inputs.price_tin }}
+          INPUT_UNIT_TIN:       ${{ github.event.inputs.unit_tin }}
+        run: node tools/update_lme_bulk.cjs
 
       - name: Commit changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: >
-            chore: manual set ${{ github.event.inputs.metal }}
-            to ${{ github.event.inputs.price }} (${{
-              github.event.inputs.unit
-            }}) by ${{ github.actor }}
+          commit_message: "chore: manual bulk metals update"
           file_pattern: |
             lme_automation/lme.json
-            tools/update_lme_manual.js
+            tools/update_lme_bulk.cjs
