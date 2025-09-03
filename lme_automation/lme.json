@@ -1,10 +1,10 @@
 {
-  "timestamp": "2025-09-03T06:11:33.901Z",
+  "timestamp": "2025-09-03T06:24:45.747Z",
   "currency": "USD",
   "unit": "kg",
   "basis": "latest",
   "meta": {
-    "usdtry": 41.1508,
+    "usdtry": 41.16,
     "units": {
       "usd_per_kg": "USD/kg",
       "wsj_usa_copper_lb": "USD/lb"
@@ -18,7 +18,7 @@
       "tin": "manual-bulk@GitHubActions (USD_per_tonne)",
       "wsj_usa_copper": "lme_copper"
     },
-    "notes": "[2025-09-03T06:11:33.901Z] aluminum=2.61 USD/kg, copper=9.957 USD/kg, nickel=15.225 USD/kg, zinc=2.864 USD/kg, lead=1.995 USD/kg, tin=34.665 USD/kg"
+    "notes": "[2025-09-03T06:11:33.901Z] aluminum=2.61 USD/kg, copper=9.957 USD/kg, nickel=15.225 USD/kg, zinc=2.864 USD/kg, lead=1.995 USD/kg, tin=34.665 USD/kg | [2025-09-03T06:24:45.747Z] aluminum=2.61 USD/kg, copper=9.957 USD/kg, nickel=15.225 USD/kg, zinc=2.864 USD/kg, lead=1.995 USD/kg, tin=34.665 USD/kg"
   },
   "usd_per_kg": {
     "aluminum": 2.61,
