@@ -1,4 +1,5 @@
-name: Set Metals + FX (Bulk)
+# Write the requested GitHub Actions workflow YAML to a downloadable file.
+content = """name: Set Metals + FX (Bulk)
 
 on:
   workflow_dispatch:
@@ -280,3 +281,9 @@ jobs:
           file_pattern: |
             lme_automation/lme.json
             lme_automation/tcmb.json
+"""
+with open("/mnt/data/set-metals-fx-bulk.yml", "w", encoding="utf-8") as f:
+    f.write(content)
+
+print("Saved to /mnt/data/set-metals-fx-bulk.yml")
+
