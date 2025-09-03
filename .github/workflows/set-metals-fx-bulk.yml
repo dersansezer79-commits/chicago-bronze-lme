@@ -28,9 +28,9 @@ on:
         required: false
         type: choice
         options:
-          - "ForexSelling"
-          - "BanknoteSelling"
-        default: "ForexSelling"
+          - ForexSelling
+          - BanknoteSelling
+        default: ForexSelling
       fx_note:
         description: "FX note (source/date)"
         required: false
@@ -41,53 +41,95 @@ on:
         required: false
         type: string
 
-      price_aluminum: { description: "Al price", required: false, type: string }
+      price_aluminum:
+        description: "Al price"
+        required: false
+        type: string
       unit_aluminum:
         description: "Al unit"
         required: false
         type: choice
-        options: ["USD_per_kg","USD_per_tonne","USD_per_ton_US","TRY_per_kg"]
-        default: "USD_per_tonne"
+        options:
+          - USD_per_kg
+          - USD_per_tonne
+          - USD_per_ton_US
+          - TRY_per_kg
+        default: USD_per_tonne
 
-      price_copper: { description: "Cu price", required: false, type: string }
+      price_copper:
+        description: "Cu price"
+        required: false
+        type: string
       unit_copper:
         description: "Cu unit"
         required: false
         type: choice
-        options: ["USD_per_kg","USD_per_tonne","USD_per_ton_US","TRY_per_kg"]
-        default: "USD_per_tonne"
+        options:
+          - USD_per_kg
+          - USD_per_tonne
+          - USD_per_ton_US
+          - TRY_per_kg
+        default: USD_per_tonne
 
-      price_lead: { description: "Pb price", required: false, type: string }
+      price_lead:
+        description: "Pb price"
+        required: false
+        type: string
       unit_lead:
         description: "Pb unit"
         required: false
         type: choice
-        options: ["USD_per_kg","USD_per_tonne","USD_per_ton_US","TRY_per_kg"]
-        default: "USD_per_tonne"
+        options:
+          - USD_per_kg
+          - USD_per_tonne
+          - USD_per_ton_US
+          - TRY_per_kg
+        default: USD_per_tonne
 
-      price_nickel: { description: "Ni price", required: false, type: string }
+      price_nickel:
+        description: "Ni price"
+        required: false
+        type: string
       unit_nickel:
         description: "Ni unit"
         required: false
         type: choice
-        options: ["USD_per_kg","USD_per_tonne","USD_per_ton_US","TRY_per_kg"]
-        default: "USD_per_tonne"
+        options:
+          - USD_per_kg
+          - USD_per_tonne
+          - USD_per_ton_US
+          - TRY_per_kg
+        default: USD_per_tonne
 
-      price_zinc: { description: "Zn price", required: false, type: string }
+      price_zinc:
+        description: "Zn price"
+        required: false
+        type: string
       unit_zinc:
         description: "Zn unit"
         required: false
         type: choice
-        options: ["USD_per_kg","USD_per_tonne","USD_per_ton_US","TRY_per_kg"]
-        default: "USD_per_tonne"
+        options:
+          - USD_per_kg
+          - USD_per_tonne
+          - USD_per_ton_US
+          - TRY_per_kg
+        default: USD_per_tonne
 
-      price_tin: { description: "Sn price", required: false, type: string }
+      price_tin:
+        description: "Sn price"
+        required: false
+        type: string
       unit_tin:
         description: "Sn unit"
         required: false
         type: choice
-        options: ["USD_per_kg","USD_per_tonne","USD_per_ton_US","TRY_per_kg"]
-        default: "USD_per_tonne"
+        options:
+          - USD_per_kg
+          - USD_per_tonne
+          - USD_per_ton_US
+          - TRY_per_kg
+        default: USD_per_tonne
 
 permissions:
   contents: write
@@ -98,7 +140,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: '20' }
+        with:
+          node-version: "20"
 
       - name: Update lme.json + tcmb.json
         env:
@@ -109,8 +152,7 @@ jobs:
           INPUT_GRAM_TRY: ${{ github.event.inputs.gram_try }}
           INPUT_FX_FIELD: ${{ github.event.inputs.fx_field }}
           INPUT_FX_NOTE:  ${{ github.event.inputs.fx_note }}
-
-          INPUT_NOTE:   ${{ github.event.inputs.note }}
+          INPUT_NOTE:     ${{ github.event.inputs.note }}
           INPUT_PRICE_ALUMINUM: ${{ github.event.inputs.price_aluminum }}
           INPUT_UNIT_ALUMINUM:  ${{ github.event.inputs.unit_aluminum }}
           INPUT_PRICE_COPPER:   ${{ github.event.inputs.price_copper }}
@@ -146,7 +188,7 @@ jobs:
             }
           }
 
-          // --- metals ---
+          // METALS
           const entries = [
             ["aluminum","INPUT_PRICE_ALUMINUM","INPUT_UNIT_ALUMINUM"],
             ["copper","INPUT_PRICE_COPPER","INPUT_UNIT_COPPER"],
@@ -189,7 +231,7 @@ jobs:
           fs.writeFileSync(lmePath, JSON.stringify(lme, null, 2));
           console.log("Wrote", lmePath);
 
-          // --- fx ---
+          // FX
           const fxField = process.env.INPUT_FX_FIELD || "ForexSelling";
           const fxNote  = process.env.INPUT_FX_NOTE || "";
           const fxInputs = {
@@ -202,10 +244,11 @@ jobs:
           const anyFX = Object.values(fxInputs).some(v => isFinite(v));
 
           if (anyFX) {
+            const fmtTR = new Intl.DateTimeFormat('tr-TR',{timeZone:'Europe/Istanbul', day:'2-digit', month:'2-digit', year:'numeric'});
             const tcmbPath = path.join('lme_automation','tcmb.json');
             fs.mkdirSync(path.dirname(tcmbPath), { recursive: true });
             let tcmb = fs.existsSync(tcmbPath) ? JSON.parse(fs.readFileSync(tcmbPath,'utf8')) : {
-              as_of: new Intl.DateTimeFormat('tr-TR',{timeZone:'Europe/Istanbul', day:'2-digit', month:'2-digit', year:'numeric'}).format(new Date()),
+              as_of: fmtTR.format(new Date()),
               source: "manual@GitHubActions",
               field: fxField,
               USDTRY: null, EURTRY: null, GBPTRY: null,
