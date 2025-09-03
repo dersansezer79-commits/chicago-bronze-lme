@@ -1,0 +1,235 @@
+name: Set Metals + FX (Simple)
+
+on:
+  workflow_dispatch:
+    inputs:
+      prices:
+        description: "CSV: tin=30450.5,copper=8760,aluminum=2215"
+        required: true
+        type: string
+      unit:
+        description: "Unit for all prices"
+        required: true
+        type: choice
+        options:
+          - USD_per_kg
+          - USD_per_tonne
+          - USD_per_ton_US
+          - TRY_per_kg
+        default: USD_per_tonne
+      usdtry:
+        description: "USD/TRY (used for TRY_per_kg and written to tcmb.json/fx.json)"
+        required: false
+        type: string
+      eurtry:
+        description: "EUR/TRY (optional, tcmb.json)"
+        required: false
+        type: string
+      gbptry:
+        description: "GBP/TRY (optional, tcmb.json)"
+        required: false
+        type: string
+      xauusd:
+        description: "XAU/USD (optional, tcmb.json)"
+        required: false
+        type: string
+      gram_try:
+        description: "Gram Altın TRY (optional, tcmb.json)"
+        required: false
+        type: string
+      fx_field:
+        description: "TCMB field name"
+        required: false
+        type: choice
+        options:
+          - ForexSelling
+          - BanknoteSelling
+        default: ForexSelling
+      note:
+        description: "Note (source/date)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Update lme.json + tcmb.json + fx.json (mirror & always refresh)
+        env:
+          INPUT_PRICES: ${{ github.event.inputs.prices }}
+          INPUT_UNIT:   ${{ github.event.inputs.unit }}
+          INPUT_USDTRY: ${{ github.event.inputs.usdtry }}
+          INPUT_EURTRY: ${{ github.event.inputs.eurtry }}
+          INPUT_GBPTRY: ${{ github.event.inputs.gbptry }}
+          INPUT_XAUUSD: ${{ github.event.inputs.xauusd }}
+          INPUT_GRAM_TRY: ${{ github.event.inputs.gram_try }}
+          INPUT_FX_FIELD: ${{ github.event.inputs.fx_field }}
+          INPUT_NOTE:   ${{ github.event.inputs.note }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+        run: |
+          node - <<'JS'
+          const fs = require('fs');
+          const path = require('path');
+
+          const toF = s => s ? parseFloat(String(s).replace(',', '.')) : NaN;
+          const KG_PER_TONNE = 1000;
+          const KG_PER_TON_US = 907.18474;
+
+          const pricesCSV = process.env.INPUT_PRICES || "";
+          const unitAll   = process.env.INPUT_UNIT || "USD_per_tonne";
+          const usdtryTop = toF(process.env.INPUT_USDTRY);
+          const note      = process.env.INPUT_NOTE || "";
+
+          const syn = new Map([
+            ['al','aluminum'],['aluminium','aluminum'],['aluminum','aluminum'],
+            ['cu','copper'],['copper','copper'],
+            ['pb','lead'],['lead','lead'],
+            ['ni','nickel'],['nickel','nickel'],
+            ['zn','zinc'],['zinc','zinc'],
+            ['sn','tin'],['tin','tin']
+          ]);
+
+          function normMetal(k){
+            k = String(k).trim().toLowerCase();
+            return syn.get(k) || k;
+          }
+
+          function toUsdPerKg(p, unit, usdtry){
+            switch(unit){
+              case 'USD_per_kg': return p;
+              case 'USD_per_tonne': return p / KG_PER_TONNE;
+              case 'USD_per_ton_US': return p / KG_PER_TON_US;
+              case 'TRY_per_kg':
+                if (!isFinite(usdtry) || usdtry <= 0) throw new Error('USD/TRY required for TRY_per_kg');
+                return p / usdtry;
+              default: throw new Error('Bad unit: '+unit);
+            }
+          }
+
+          // Parse "metal=value" pairs
+          const pairs = pricesCSV.split(',').map(s => s.trim()).filter(Boolean);
+          const updates = [];
+          const values = {}; // canonical metal -> usd/kg
+
+          for (const pair of pairs){
+            const m = pair.split('=');
+            if (m.length < 2) continue;
+            const key = normMetal(m[0]);
+            const val = toF(m.slice(1).join('='));
+            if (!isFinite(val)) continue;
+            if (!['aluminum','copper','lead','nickel','zinc','tin'].includes(key)) continue;
+            const usdkg = Math.round(toUsdPerKg(val, unitAll, usdtryTop)*1e6)/1e6;
+            values[key] = usdkg;
+            updates.push(`${key}=${usdkg} USD/kg`);
+          }
+
+          // lme.json
+          const lmePath = path.join('lme_automation','lme.json');
+          fs.mkdirSync(path.dirname(lmePath), { recursive: true });
+          let lme = fs.existsSync(lmePath) ? JSON.parse(fs.readFileSync(lmePath,'utf8')) : {
+            timestamp: new Date().toISOString(),
+            usd_per_kg: { aluminum:0, copper:0, lead:0, nickel:0, zinc:0, tin:0 },
+            benchmarks: { wsj_usa_copper_lb: null, wsj_usa_copper_kg: null },
+            meta: { sources_used:{}, usdtry:null, notes:"" }
+          };
+          lme.meta.sources_used ||= {};
+
+          for (const [metal, usdkg] of Object.entries(values)){
+            lme.usd_per_kg[metal] = usdkg;
+            lme.meta.sources_used[metal] = `manual-bulk@GitHubActions (${unitAll})`;
+          }
+          if (isFinite(usdtryTop) && usdtryTop > 0) lme.meta.usdtry = usdtryTop;
+          const stamp = new Date().toISOString();
+          lme.timestamp = stamp;
+          if (updates.length){
+            const line = `[${stamp}] ${updates.join(', ')}${note ? ' :: '+note : ''}`;
+            lme.meta.notes = (lme.meta.notes ? lme.meta.notes + ' | ' : '') + line;
+          }
+          fs.writeFileSync(lmePath, JSON.stringify(lme, null, 2));
+          console.log('Wrote', lmePath);
+
+          // tcmb.json
+          const tcmbPath = path.join('lme_automation','tcmb.json');
+          const fmtTR = new Intl.DateTimeFormat('tr-TR', { timeZone:'Europe/Istanbul', day:'2-digit', month:'2-digit', year:'numeric' });
+          fs.mkdirSync(path.dirname(tcmbPath), { recursive: true });
+
+          let tcmb = fs.existsSync(tcmbPath) ? JSON.parse(fs.readFileSync(tcmbPath,'utf8')) : {
+            as_of: fmtTR.format(new Date()),
+            source: "manual@GitHubActions",
+            field: "ForexSelling",
+            USDTRY: null, EURTRY: null, GBPTRY: null,
+            gold: { XAUUSD: null, gram_try: null },
+            updated_at: new Date().toISOString()
+          };
+
+          const updNum = (cur, envName) => {
+            const v = toF(process.env[envName]);
+            return isFinite(v) ? v : (cur ?? null);
+          };
+
+          tcmb.USDTRY = updNum(tcmb.USDTRY, 'INPUT_USDTRY');
+          tcmb.EURTRY = updNum(tcmb.EURTRY, 'INPUT_EURTRY');
+          tcmb.GBPTRY = updNum(tcmb.GBPTRY, 'INPUT_GBPTRY');
+          tcmb.gold = {
+            XAUUSD: updNum(tcmb.gold?.XAUUSD, 'INPUT_XAUUSD'),
+            gram_try: updNum(tcmb.gold?.gram_try, 'INPUT_GRAM_TRY')
+          };
+
+          tcmb.field = (process.env.INPUT_FX_FIELD || tcmb.field || "ForexSelling");
+          tcmb.source = note ? `manual@GitHubActions — ${note}` : "manual@GitHubActions";
+          tcmb.as_of = fmtTR.format(new Date());
+          tcmb.updated_at = new Date().toISOString();
+          tcmb.meta = {
+            updated_by: "set-metals-fx-simple",
+            run_id: process.env.GITHUB_RUN_ID,
+            run_number: process.env.GITHUB_RUN_NUMBER,
+            repo: process.env.GITHUB_REPOSITORY,
+            stamp: new Date().toISOString()
+          };
+
+          fs.writeFileSync(tcmbPath, JSON.stringify(tcmb, null, 2));
+          console.log('Wrote', tcmbPath);
+
+          // fx.json mirror (root)
+          const fxPath = path.join('fx.json');
+          const fxMirror = {
+            USDTRY: tcmb.USDTRY ?? null,
+            source: "mirror:lme_automation/tcmb.json",
+            field: tcmb.field,
+            as_of: tcmb.as_of,
+            updated_at: tcmb.updated_at
+          };
+          fs.writeFileSync(fxPath, JSON.stringify(fxMirror, null, 2));
+          console.log('Wrote', fxPath);
+          JS
+
+      - name: Show git status and diff
+        run: |
+          git status -s
+          echo "---- DIFF tcmb.json ----"
+          git --no-pager diff -- lme_automation/tcmb.json || true
+          echo "---- DIFF fx.json ----"
+          git --no-pager diff -- fx.json || true
+          echo "---- DIFF lme.json ----"
+          git --no-pager diff -- lme_automation/lme.json || true
+
+      - name: Commit changes (commit all)
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: simple bulk metals + FX update (mirror + debug)"
+          commit_options: "--no-verify"
+          commit_user_name: "github-actions[bot]"
+          commit_user_email: "41898282+github-actions[bot]@users.noreply.github.com"
+          push_options: "--force-with-lease"
+          commit_all: true
