@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-09-03T06:50:22.959Z",
+  "timestamp": "2025-09-04T06:45:39.620Z",
   "currency": "USD",
   "unit": "kg",
   "basis": "latest",
@@ -18,15 +18,15 @@
       "tin": "manual-bulk@GitHubActions (USD_per_tonne)",
       "wsj_usa_copper": "lme_copper"
     },
-    "notes": "[2025-09-03T06:11:33.901Z] aluminum=2.61 USD/kg, copper=9.957 USD/kg, nickel=15.225 USD/kg, zinc=2.864 USD/kg, lead=1.995 USD/kg, tin=34.665 USD/kg | [2025-09-03T06:24:45.747Z] aluminum=2.61 USD/kg, copper=9.957 USD/kg, nickel=15.225 USD/kg, zinc=2.864 USD/kg, lead=1.995 USD/kg, tin=34.665 USD/kg | [2025-09-03T06:31:57.055Z] aluminum=2.61 USD/kg, copper=9.957 USD/kg, nickel=15.225 USD/kg, zinc=2.864 USD/kg, lead=1.995 USD/kg, tin=34.665 USD/kg | [2025-09-03T06:41:48.727Z] aluminum=2.61 USD/kg, copper=9.957 USD/kg, nickel=15.225 USD/kg, zinc=2.864 USD/kg, lead=1.995 USD/kg, tin=34.665 USD/kg | [2025-09-03T06:50:22.959Z] aluminum=2.61 USD/kg, copper=9.957 USD/kg, nickel=15.225 USD/kg, zinc=2.864 USD/kg, lead=1.995 USD/kg, tin=34.665 USD/kg"
+    "notes": "[2025-09-03T06:11:33.901Z] aluminum=2.61 USD/kg, copper=9.957 USD/kg, nickel=15.225 USD/kg, zinc=2.864 USD/kg, lead=1.995 USD/kg, tin=34.665 USD/kg | [2025-09-03T06:24:45.747Z] aluminum=2.61 USD/kg, copper=9.957 USD/kg, nickel=15.225 USD/kg, zinc=2.864 USD/kg, lead=1.995 USD/kg, tin=34.665 USD/kg | [2025-09-03T06:31:57.055Z] aluminum=2.61 USD/kg, copper=9.957 USD/kg, nickel=15.225 USD/kg, zinc=2.864 USD/kg, lead=1.995 USD/kg, tin=34.665 USD/kg | [2025-09-03T06:41:48.727Z] aluminum=2.61 USD/kg, copper=9.957 USD/kg, nickel=15.225 USD/kg, zinc=2.864 USD/kg, lead=1.995 USD/kg, tin=34.665 USD/kg | [2025-09-03T06:50:22.959Z] aluminum=2.61 USD/kg, copper=9.957 USD/kg, nickel=15.225 USD/kg, zinc=2.864 USD/kg, lead=1.995 USD/kg, tin=34.665 USD/kg | [2025-09-04T06:45:39.620Z] copper=9.899 USD/kg, aluminum=2.595 USD/kg, zinc=2.847 USD/kg, lead=1.991 USD/kg, nickel=15.175 USD/kg, tin=34.505 USD/kg"
   },
   "usd_per_kg": {
-    "aluminum": 2.61,
-    "copper": 9.957,
-    "lead": 1.995,
-    "nickel": 15.225,
-    "zinc": 2.864,
-    "tin": 34.665
+    "aluminum": 2.595,
+    "copper": 9.899,
+    "lead": 1.991,
+    "nickel": 15.175,
+    "zinc": 2.847,
+    "tin": 34.505
   },
   "benchmarks": {
     "wsj_usa_copper_lb": 4.626373783392102,
