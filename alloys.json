@@ -1,5 +1,5 @@
 {
-  "version": "2025-09-08T11:43:15.245Z",
+  "version": "2025-09-08T12:04:56.541Z",
   "defaults": {
     "ops_usd_per_kg": 0.5,
     "margin_pct": 12,
@@ -24,7 +24,7 @@
         "Zn": 3
       },
       "lme_multiplier": 0.83,
-      "premium_usd_per_kg": 22,
+      "premium_usd_per_kg": 32,
       "ops_usd_per_kg": 0.5,
       "margin_pct": 12,
       "limits": {
@@ -56,7 +56,7 @@
         "Al": 1.5
       },
       "lme_multiplier": 0.6,
-      "premium_usd_per_kg": 23.1,
+      "premium_usd_per_kg": 33.1,
       "ops_usd_per_kg": 0.5,
       "margin_pct": 12,
       "limits": {
@@ -87,7 +87,7 @@
         "Mn": 1
       },
       "lme_multiplier": 0.86,
-      "premium_usd_per_kg": 21.9,
+      "premium_usd_per_kg": 31.9,
       "ops_usd_per_kg": 0.5,
       "margin_pct": 12,
       "limits": {
@@ -119,7 +119,7 @@
         "Mn": 1
       },
       "lme_multiplier": 0.82,
-      "premium_usd_per_kg": 23,
+      "premium_usd_per_kg": 33,
       "ops_usd_per_kg": 0.6,
       "margin_pct": 12,
       "limits": {
@@ -151,7 +151,7 @@
         "Mn": 1.5
       },
       "lme_multiplier": 0.8,
-      "premium_usd_per_kg": 22.8,
+      "premium_usd_per_kg": 32.8,
       "ops_usd_per_kg": 0.6,
       "margin_pct": 12,
       "limits": {
@@ -183,7 +183,7 @@
         "Mn": 1.5
       },
       "lme_multiplier": 0.8,
-      "premium_usd_per_kg": 22.9,
+      "premium_usd_per_kg": 32.9,
       "ops_usd_per_kg": 0.6,
       "margin_pct": 12,
       "limits": {
@@ -213,7 +213,7 @@
         "Ni": 2
       },
       "lme_multiplier": 0.86,
-      "premium_usd_per_kg": 23.2,
+      "premium_usd_per_kg": 33.2,
       "ops_usd_per_kg": 0.5,
       "margin_pct": 12,
       "limits": {
@@ -244,7 +244,7 @@
         "Ni": 5
       },
       "lme_multiplier": 0.82,
-      "premium_usd_per_kg": 23,
+      "premium_usd_per_kg": 33,
       "ops_usd_per_kg": 0.6,
       "margin_pct": 12,
       "limits": {
@@ -276,7 +276,7 @@
         "Mn": 0.1
       },
       "lme_multiplier": 1,
-      "premium_usd_per_kg": 50.3,
+      "premium_usd_per_kg": 70.3,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -302,7 +302,7 @@
         "Sn": 8
       },
       "lme_multiplier": 1,
-      "premium_usd_per_kg": 50.5,
+      "premium_usd_per_kg": 70.5,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -329,7 +329,7 @@
         "Pb": 1.5
       },
       "lme_multiplier": 1,
-      "premium_usd_per_kg": 22.2,
+      "premium_usd_per_kg": 32.2,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -355,7 +355,7 @@
         "Zn": 0.5
       },
       "lme_multiplier": 1,
-      "premium_usd_per_kg": 22.4,
+      "premium_usd_per_kg": 32.4,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -383,7 +383,7 @@
         "Pb": 0.25
       },
       "lme_multiplier": 1,
-      "premium_usd_per_kg": 22.6,
+      "premium_usd_per_kg": 32.6,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -410,7 +410,7 @@
         "Pb": 0.3
       },
       "lme_multiplier": 1,
-      "premium_usd_per_kg": 22.4,
+      "premium_usd_per_kg": 32.4,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -437,7 +437,7 @@
         "Pb": 0.1
       },
       "lme_multiplier": 1,
-      "premium_usd_per_kg": 22.3,
+      "premium_usd_per_kg": 32.3,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -464,7 +464,7 @@
         "Zn": 0.7
       },
       "lme_multiplier": 1,
-      "premium_usd_per_kg": 22.4,
+      "premium_usd_per_kg": 32.4,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -492,7 +492,7 @@
         "Zn": 0.25
       },
       "lme_multiplier": 1,
-      "premium_usd_per_kg": 22.5,
+      "premium_usd_per_kg": 32.5,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -518,7 +518,7 @@
         "Pb": 10
       },
       "lme_multiplier": 1,
-      "premium_usd_per_kg": 22.3,
+      "premium_usd_per_kg": 32.3,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -545,7 +545,7 @@
         "Zn": 5
       },
       "lme_multiplier": 1,
-      "premium_usd_per_kg": 21.2,
+      "premium_usd_per_kg": 31.2,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -573,7 +573,7 @@
         "Ni": 0.5
       },
       "lme_multiplier": 1,
-      "premium_usd_per_kg": 22.2,
+      "premium_usd_per_kg": 32.2,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -601,7 +601,7 @@
         "Mn": 1
       },
       "lme_multiplier": 1,
-      "premium_usd_per_kg": 24.7,
+      "premium_usd_per_kg": 34.7,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -629,7 +629,7 @@
         "Mn": 1
       },
       "lme_multiplier": 1,
-      "premium_usd_per_kg": 23.5,
+      "premium_usd_per_kg": 33.5,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
@@ -658,7 +658,7 @@
         "Pb": 0.2
       },
       "lme_multiplier": 1,
-      "premium_usd_per_kg": 21.2,
+      "premium_usd_per_kg": 31.2,
       "ops_usd_per_kg": 1.25,
       "margin_pct": 0.1,
       "limits": {
