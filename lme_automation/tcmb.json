@@ -1,17 +1,17 @@
 {
-  "as_of": "08.09.2025",
+  "as_of": "09.09.2025",
   "source": "manual@GitHubActions",
   "field": "ForexSelling",
-  "USDTRY": 41.26,
-  "EURTRY": 48.4,
-  "GBPTRY": 55.65,
+  "USDTRY": 41.27,
+  "EURTRY": 48.63,
+  "GBPTRY": 56.06,
   "gold": {
     "XAUUSD": 41.25,
-    "gram_try": 4765
+    "gram_try": 4832
   },
-  "updated_at": "2025-09-08T06:19:43.680Z",
+  "updated_at": "2025-09-09T06:28:35.474Z",
   "meta": {
-    "stamp": "2025-09-08T06:19:43.680Z",
-    "run_id": "17541648242"
+    "stamp": "2025-09-09T06:28:35.474Z",
+    "run_id": "17573854623"
   }
 }
