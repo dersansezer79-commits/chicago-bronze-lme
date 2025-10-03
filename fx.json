@@ -1,7 +1,7 @@
 {
-  "USDTRY": 41.6,
+  "USDTRY": 41.68,
   "source": "mirror:lme_automation/tcmb.json",
   "field": "ForexSelling",
-  "as_of": "02.10.2025",
-  "updated_at": "2025-10-02T06:24:13.283Z"
+  "as_of": "03.10.2025",
+  "updated_at": "2025-10-03T06:29:31.593Z"
 }
